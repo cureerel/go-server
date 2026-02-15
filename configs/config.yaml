@@ -1,0 +1,6 @@
+server:
+  port: "8080"
+
+database:
+  dsn: "postgresql://postgres.wrluqbtnjjavubkbpmtz:ROOEObVUif02Yw1I@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+
