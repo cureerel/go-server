@@ -1,39 +1,65 @@
 package service
 
 import (
-    "errors" 
-
-    "github.com/cureerel/gotemplate/internal/domain/entity"
-    "github.com/cureerel/gotemplate/internal/domain/repository"
-    customErrors "github.com/cureerel/gotemplate/pkg/errors" // Alias your custom errors to avoid conflict
+	"errors"
+	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"github.com/cureerel/gotemplate/internal/domain/repository"
 )
 
 type UserService struct {
-    repo repository.UserRepository
+	userRepo repository.UserRepository
 }
 
-func NewUserService(repo repository.UserRepository) *UserService {
-    return &UserService{repo: repo}
+func NewUserService(userRepo repository.UserRepository) *UserService {
+	return &UserService{userRepo: userRepo}
 }
 
-func (s *UserService) CreateUser(username, email string) (*entity.User, error) {
-    if username == "" {
-        // Use standard errors.New for the message, pass it to your custom wrapper
-        return nil, customErrors.NewBadRequest(errors.New("username cannot be empty"))
-    }
-
-    user := &entity.User{
-        Username: username,
-        Email:    email,
-    }
-
-    if err := s.repo.Create(user); err != nil {
-        return nil, customErrors.NewInternal(err)
-    }
-
-    return user, nil
+func (s *UserService) GetAll() ([]entity.User, error) {
+	return s.userRepo.GetAll()
 }
 
-func (s *UserService) GetAllUsers() ([]*entity.User, error) {
-    return s.repo.FindAll()
+func (s *UserService) Create(name, email, password string) (*entity.User, error) {
+	// Check if email exists
+	existing, _ := s.userRepo.GetByEmail(email)
+	if existing != nil {
+		return nil, errors.New("email already exists")
+	}
+
+	user := &entity.User{
+		Name:     name,
+		Email:    email,
+		Password: password, // TODO: Hash password
+	}
+
+	if err := s.userRepo.Create(user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *UserService) GetByID(id uint) (*entity.User, error) {
+	return s.userRepo.GetByID(id)
+}
+
+func (s *UserService) Update(id uint, name, email string) (*entity.User, error) {
+	user, err := s.userRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if name != "" {
+		user.Name = name
+	}
+	if email != "" {
+		user.Email = email
+	}
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *UserService) Delete(id uint) error {
+	return s.userRepo.Delete(id)
 }

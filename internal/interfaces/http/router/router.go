@@ -34,9 +34,9 @@ func SetupRouter(userHandler *handler.UserHandler, blogHandler *handler.BlogHand
 			users.GET("", userHandler.GetAllUsers)
 			users.POST("", userHandler.CreateUser)
 			// Add these methods to UserHandler if you need them:
-			// users.GET("/:id", userHandler.GetUserByID)
-			// users.PUT("/:id", userHandler.UpdateUser)
-			// users.DELETE("/:id", userHandler.DeleteUser)
+			users.GET("/:id", userHandler.GetUserByID)
+			users.PUT("/:id", userHandler.UpdateUser)
+			users.DELETE("/:id", userHandler.DeleteUser)
 		}
 
 		// Blog routes

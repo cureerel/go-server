@@ -1,12 +1,20 @@
 package entity
 
-import "time"
+import (
+	"time"
+	"gorm.io/gorm"
+)
 
-// User represents the domain entity for a user.
-// This is the core business object.
 type User struct {
-    ID        int       `json:"id"`
-    Username  string    `json:"username"`
-    Email     string    `json:"email"`
-    CreatedAt time.Time `json:"created_at"`
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	Name      string         `json:"name" gorm:"not null;size:100"`
+	Email     string         `json:"email" gorm:"uniqueIndex;not null;size:100"`
+	Password  string         `json:"-" gorm:"not null;size:255"` // json:"-" to never return password in JSON
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+func (User) TableName() string {
+	return "users"
 }

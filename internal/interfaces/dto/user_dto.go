@@ -1,23 +1,19 @@
 package dto
 
-// MUST ADD THIS IMPORT:
-import "github.com/cureerel/gotemplate/internal/domain/entity"
-
 type CreateUserRequest struct {
-    Username string `json:"username" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
+	Name     string `json:"name" binding:"required,min=2,max=100"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+type UpdateUserRequest struct {
+	Name  string `json:"name" binding:"omitempty,min=2,max=100"`
+	Email string `json:"email" binding:"omitempty,email"`
 }
 
 type UserResponse struct {
-    ID       int    `json:"id"`
-    Username string `json:"username"`
-    Email    string `json:"email"`
-}
-
-func ToUserResponse(u *entity.User) UserResponse {
-    return UserResponse{
-        ID:       u.ID,
-        Username: u.Username,
-        Email:    u.Email,
-    }
+	ID        uint   `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	CreatedAt string `json:"created_at"`
 }
