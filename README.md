@@ -24,45 +24,6 @@ This template follows **Hexagonal Architecture** (Ports & Adapters). The flow of
 
 
 
-## 🏗️ Project Structure
-
-```text
-.
-├── api                    # API Definitions (OpenAPI/Swagger, Proto files)
-├── cmd                    # Application Entry Points
-│   └── server
-│       └── main.go        # The only place where initialization happens (Wiring)
-├── configs                # Configuration files
-│   └── config.yaml
-├── internal               # Private Application Code (The Core)
-│   ├── application        # USE CASES (Orchestrators)
-│   │   └── service
-│   ├── domain             # ENTERPRISE RULES (The Heart)
-│   │   ├── entity         # Pure business structs
-│   │   ├── repository     # INTERFACES (Ports) - Contracts only!
-│   │   └── service        # Domain Services
-│   ├── infrastructure     # EXTERNAL TOOLS (Adapters)
-│   │   ├── database       # DB connection logic
-│   │   └── persistence    # SQL Implementations (Repo Impl)
-│   └── interfaces         # DELIVERY MECHANISMS
-│       ├── http
-│       │   ├── handler    # HTTP Controllers
-│       │   ├── middleware
-│       │   └── router     # Route definitions (Gin)
-│       └── dto            # Data Transfer Objects
-├── pkg                    # Public Libraries (Reusable code)
-│   ├── errors
-│   ├── logger
-│   └── utils
-├── scripts                # Automation
-│   ├── build.sh
-│   └── migrate.sh
-├── .gitignore
-├── go.mod
-├── Makefile
-└── README.md
-```
-
 
 
 ## 🛡️ SOLID Principles in Action
@@ -95,24 +56,9 @@ This template isn't just organized; it's engineered to satisfy the 5 SOLID princ
 
 ### Prerequisites
 *   Go 1.21+
-*   Supabase Account (or Postgres DB)
 
-### Installation
 
-1.  **Clone the repo**
-    ```bash
-    git clone https://github.com/cureerel/gotemplate.git
-    cd gotemplate
-    ```
 
-2.  **Install Dependencies**
-    ```bash
-    go mod download
-    ```
-
-3.  **Configure Environment**
-    *   Copy `configs/config.yaml`.
-    *   Update the `database.dsn` with your Supabase Connection String (Transaction Mode recommended).
 
 4.  **Run the Server**
     *   Using the Makefile (Recommended):

@@ -2,5 +2,13 @@ server:
   port: "8080"
 
 database:
-  dsn: "postgresql://postgres.wrluqbtnjjavubkbpmtz:ROOEObVUif02Yw1I@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+  dsn: "postgresql://postgres.wrluqbtnjjavubkbpmtz:ROOEObVUif02Yw1I@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require&prefer_simple_protocol=true"
+
+jwt:
+  access_secret: "your-32-char-secret-here-minimum"
+  refresh_secret: "different-32-char-secret-here"
+
+webhook:
+  stripe_secret: "whsec_your_stripe_webhook_secret_here"
+  razorpay_secret: "your_razorpay_webhook_secret_here"
 
