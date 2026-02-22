@@ -120,4 +120,4 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
         return
     }
     c.JSON(http.StatusOK, gin.H{"message": "order status updated"})
-}
+} 
