@@ -19,6 +19,8 @@ func NewBlogHandler(blogService *service.BlogService) *BlogHandler {
     return &BlogHandler{blogService: blogService}
 }
 
+// ----------------- Handlers -----------------
+
 func (h *BlogHandler) Create(c *gin.Context) {
     var req dto.CreateBlogRequest
     if err := c.ShouldBindJSON(&req); err != nil {
@@ -140,6 +142,8 @@ func (h *BlogHandler) Delete(c *gin.Context) {
     }
     c.JSON(http.StatusOK, gin.H{"message": "blog deleted successfully"})
 }
+
+// ----------------- Helpers -----------------
 
 func toBlogResponse(blog *entity.Blog) dto.BlogResponse {
     return dto.BlogResponse{

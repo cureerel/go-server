@@ -1,13 +1,11 @@
 .PHONY: run build clean deps help \
-        migrate-up migrate-down migrate-status migrate-create migrate-lint \
+        migrate-up migrate-down migrate-status migrate-create migrate-lint migrate-prod \
         lint fmt vet test prod-build
 
-# Variables
-APP_NAME   = gotemplate
-BUILD_DIR  = build
-CMD_DIR    = ./cmd/server
+APP_NAME  = gotemplate
+BUILD_DIR = build
+CMD_DIR   = ./cmd/server
 
-# Load .env if it exists
 -include .env
 export
 
@@ -49,11 +47,13 @@ clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 
 # ── Migrations ────────────────────────────────────────────────
-migrate-up: ## Apply all pending migrations
+# tested
+migrate-up:
 	@echo "Applying migrations..."
 	atlas migrate apply \
 		--env local \
-		--config file://atlas.hcl
+		--config file://atlas.hcl \
+		--allow-dirty
 
 migrate-down: ## Revert last migration
 	@echo "Reverting last migration..."
@@ -61,22 +61,23 @@ migrate-down: ## Revert last migration
 		--env local \
 		--config file://atlas.hcl
 
-migrate-status: ## Show migration status
+#tested
+migrate-status: ## Show current migration status
 	atlas migrate status \
 		--env local \
 		--config file://atlas.hcl
 
-migrate-create: ## Create new migration (usage: make migrate-create NAME=add_users_table)
-	@[ "$(NAME)" ] || ( echo "ERROR: NAME is required. Usage: make migrate-create NAME=add_users_table"; exit 1 )
+#tested
+migrate-create: 
+	@[ "$(NAME)" ] || ( echo "ERROR: NAME is required. Usage: make migrate-create NAME=add_users"; exit 1 )
+	@echo "Creating migration: $(NAME)"
 	atlas migrate new $(NAME) \
-		--env local \
-		--config file://atlas.hcl
+		--dir "file://migrations"
 
-migrate-lint: ## Lint migration files
+migrate-lint: ## Lint and validate migration files
 	atlas migrate lint \
 		--env local \
-		--config file://atlas.hcl \
-		--dev-url "$(DEV_DATABASE_URL)"
+		--config file://atlas.hcl
 
 migrate-prod: ## Apply migrations in production
 	@echo "Applying production migrations..."

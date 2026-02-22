@@ -14,10 +14,9 @@ type User struct {
     PasswordHash string         `gorm:"column:password_hash;size:255"`
     Role         string         `gorm:"default:'user';size:20"`
     IsActive     bool           `gorm:"default:true"`
-    CreatedAt    time.Time
-    UpdatedAt    time.Time
+    CreatedAt    time.Time      `gorm:"column:created_at"`
+    UpdatedAt    time.Time      `gorm:"column:updated_at"`
     DeletedAt    gorm.DeletedAt `gorm:"index"`
-    Blogs        []Blog         `gorm:"foreignKey:AuthorID"`
 }
 
 func (User) TableName() string {

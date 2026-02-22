@@ -15,7 +15,7 @@ type Blog struct {
     AuthorID  uint           `gorm:"not null;index"`
     Status    string         `gorm:"default:'draft';size:20"`
     Tags      string         `gorm:"size:500"`
-    CreatedAt time.Time
+    CreatedAt time.Time      `gorm:"column:created_at"`
     UpdatedAt time.Time
     DeletedAt gorm.DeletedAt `gorm:"index"`
     Author    User           `gorm:"foreignKey:AuthorID"`

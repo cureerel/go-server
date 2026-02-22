@@ -8,8 +8,8 @@ type Blog struct {
     Slug      string    `json:"slug"`
     Content   string    `json:"content"`
     AuthorID  uint      `json:"author_id"`
-    Status    string    `json:"status"` // draft, published, archived
-    Tags      string    `json:"tags"`   // comma-separated
+    Status    string    `json:"status"` 
+    Tags      string    `json:"tags"`   
     CreatedAt time.Time `json:"created_at"`
     UpdatedAt time.Time `json:"updated_at"`
 }

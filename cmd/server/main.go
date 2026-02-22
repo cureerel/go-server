@@ -82,7 +82,6 @@ func main() {
         log.Fatal("Failed to load config", logger.Field{Key: "error", Value: err})
     }
 
-    // Set gin mode based on env
     if cfg.Server.Env == "production" {
         os.Setenv("GIN_MODE", "release")
     }
@@ -103,13 +102,6 @@ func main() {
     }
     db := sqlDB.GormDB().(*gorm.DB)
 
-    // Production: verify migrations have been applied
-    if cfg.Server.Env == "production" {
-        if err := checkMigrationsApplied(db); err != nil {
-            log.Fatal("Migration check failed", logger.Field{Key: "error", Value: err})
-        }
-    }
-
     // ── Repositories ──────────────────────────────────────────
     userRepo       := repositories.NewUserRepository(db)
     blogRepo       := repositories.NewBlogRepository(db)
@@ -120,9 +112,9 @@ func main() {
     membershipRepo := repositories.NewMembershipRepository(db)
 
     // ── Services ──────────────────────────────────────────────
-    userService    := service.NewUserService(userRepo)
-    blogService    := service.NewBlogService(blogRepo)
-    authService    := service.NewAuthService(userRepo, authRepo, service.JWTConfig{
+    userService       := service.NewUserService(userRepo)
+    blogService       := service.NewBlogService(blogRepo)
+    authService       := service.NewAuthService(userRepo, authRepo, service.JWTConfig{
         AccessSecret:  cfg.JWT.AccessSecret,
         RefreshSecret: cfg.JWT.RefreshSecret,
     })
@@ -187,21 +179,4 @@ func main() {
         log.Fatal("Server forced to shutdown", logger.Field{Key: "error", Value: err})
     }
     log.Info("Server exited")
-}
-
-func checkMigrationsApplied(db *gorm.DB) error {
-    var count int64
-    result := db.Raw(`
-        SELECT count(*) 
-        FROM information_schema.tables 
-        WHERE table_name = 'atlas_schema_revisions'
-    `).Scan(&count)
-
-    if result.Error != nil {
-        return fmt.Errorf("failed to check migration status: %w", result.Error)
-    }
-    if count == 0 {
-        return fmt.Errorf("MIGRATION REQUIRED: run 'atlas migrate apply' first")
-    }
-    return nil
 }

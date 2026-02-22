@@ -7,6 +7,7 @@ import (
 
     "github.com/cureerel/gotemplate/internal/application/service"
     "github.com/cureerel/gotemplate/internal/domain/entity"
+    "github.com/cureerel/gotemplate/internal/interfaces/dto"
     "github.com/gin-gonic/gin"
 )
 
@@ -18,6 +19,8 @@ func NewMembershipHandler(membershipService *service.MembershipService) *Members
     return &MembershipHandler{membershipService: membershipService}
 }
 
+// ----------------- Requests -----------------
+
 type activateMembershipRequest struct {
     Plan entity.MembershipPlan `json:"plan" binding:"required"`
 }
@@ -25,6 +28,8 @@ type activateMembershipRequest struct {
 type upgradeMembershipRequest struct {
     Plan entity.MembershipPlan `json:"plan" binding:"required"`
 }
+
+// ----------------- Handlers -----------------
 
 // POST /memberships/activate
 func (h *MembershipHandler) Activate(c *gin.Context) {
@@ -47,7 +52,8 @@ func (h *MembershipHandler) Activate(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    c.JSON(http.StatusCreated, gin.H{"data": membership})
+
+    c.JSON(http.StatusCreated, gin.H{"data": toMembershipResponse(membership)})
 }
 
 // GET /memberships/me
@@ -65,7 +71,8 @@ func (h *MembershipHandler) GetMine(c *gin.Context) {
         c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
         return
     }
-    c.JSON(http.StatusOK, gin.H{"data": membership})
+
+    c.JSON(http.StatusOK, gin.H{"data": toMembershipResponse(membership)})
 }
 
 // POST /memberships/upgrade
@@ -89,7 +96,8 @@ func (h *MembershipHandler) Upgrade(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    c.JSON(http.StatusOK, gin.H{"data": membership})
+
+    c.JSON(http.StatusOK, gin.H{"data": toMembershipResponse(membership)})
 }
 
 // DELETE /memberships/cancel
@@ -106,5 +114,21 @@ func (h *MembershipHandler) Cancel(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
+
     c.JSON(http.StatusOK, gin.H{"message": "membership cancelled"})
+}
+
+// ----------------- Helper -----------------
+
+func toMembershipResponse(m *entity.Membership) dto.MembershipResponse {
+    return dto.MembershipResponse{
+        ID:        m.ID,
+        UserID:    m.UserID,
+        Plan:      string(m.Plan),
+        Status:    string(m.Status),
+        StartsAt:  m.StartsAt.Format("2006-01-02T15:04:05Z"),
+        ExpiresAt: m.ExpiresAt.Format("2006-01-02T15:04:05Z"),
+        CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z"),
+        UpdatedAt: m.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+    }
 }

@@ -3,10 +3,12 @@ package middleware
 import (
 	"net/http"
 	"strings"
-	"github.com/gin-gonic/gin"
+
 	"github.com/cureerel/gotemplate/internal/application/service"
+	"github.com/gin-gonic/gin"
 )
 
+// AuthMiddleware validates JWT access token and sets user info in context
 func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -23,24 +25,31 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 
 		claims, err := authService.ValidateAccessToken(parts[1])
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
 
-		// Set context values for handlers
+		// Safely set context values
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("role", claims.Role)
+
 		c.Next()
 	}
 }
 
-// RoleMiddleware for RBAC
+// RoleMiddleware checks if user has one of the allowed roles
 func RoleMiddleware(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRole, exists := c.Get("role")
+		userRoleIface, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "role not found"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "role not found in context"})
+			return
+		}
+
+		userRole, ok := userRoleIface.(string)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid role type in context"})
 			return
 		}
 
@@ -50,6 +59,7 @@ func RoleMiddleware(roles ...string) gin.HandlerFunc {
 				return
 			}
 		}
+
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient permissions"})
 	}
 }

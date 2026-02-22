@@ -1,16 +1,22 @@
+variable "database_url" {
+  type    = string
+  default = getenv("DATABASE_URL")
+}
+
 env "local" {
-  url = getenv("DATABASE_URL")
-  dev = getenv("DEV_DATABASE_URL")
+  url = var.database_url
   migration {
-    dir    = "file://migrations"
-    format = atlas
+    dir              = "file://migrations"
+    format           = atlas
+    revisions_schema = "public"
   }
 }
 
 env "production" {
-  url = getenv("DATABASE_URL")
+  url = var.database_url
   migration {
-    dir    = "file://migrations"
-    format = atlas
+    dir              = "file://migrations"
+    format           = atlas
+    revisions_schema = "public"
   }
 }
