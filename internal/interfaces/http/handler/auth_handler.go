@@ -1,54 +1,109 @@
 package handler
 
 import (
-	"net/http"
-	"github.com/gin-gonic/gin"
-	"github.com/cureerel/gotemplate/internal/application/service"
+    "net/http"
+
+    "github.com/cureerel/gotemplate/internal/application/service"
+    "github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+    authService *service.AuthService
 }
 
 func NewAuthHandler(authService *service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+    return &AuthHandler{authService: authService}
 }
 
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+type loginRequest struct {
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required"`
+}
+
+type signupRequest struct {
+    Name     string `json:"name" binding:"required"`
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required,min=6"`
+}
+
+type refreshRequest struct {
+    RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type logoutRequest struct {
+    RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+func (h *AuthHandler) Signup(c *gin.Context) {
+    var req signupRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    user, err := h.authService.Signup(c.Request.Context(), req.Name, req.Email, req.Password)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusCreated, gin.H{
+        "data": gin.H{
+            "id":    user.ID,
+            "name":  user.Name,
+            "email": user.Email,
+        },
+    })
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    var req loginRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	token, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
+    token, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+        return
+    }
 
-	c.JSON(http.StatusOK, token)
+    c.JSON(http.StatusOK, gin.H{"data": token})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    var req refreshRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	token, err := h.authService.Refresh(c.Request.Context(), req.RefreshToken)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
-		return
-	}
+    token, err := h.authService.Refresh(c.Request.Context(), req.RefreshToken)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+        return
+    }
 
-	c.JSON(http.StatusOK, token)
+    c.JSON(http.StatusOK, gin.H{"data": token})
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+    var req logoutRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    accessToken := c.GetHeader("Authorization")
+    if len(accessToken) > 7 {
+        accessToken = accessToken[7:] // strip "Bearer "
+    }
+
+    if err := h.authService.Logout(c.Request.Context(), accessToken, req.RefreshToken); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }

@@ -1,38 +1,29 @@
 package entity
 
 import (
-	"fmt"
-	"time"
-
-	"gorm.io/gorm"
+    "fmt"
+    "time"
 )
 
 type User struct {
-	ID           uint           `json:"id" gorm:"primaryKey"`
-	Name         string         `json:"name" gorm:"not null;size:100"`
-	Email        string         `json:"email" gorm:"uniqueIndex;not null;size:100"`
-	Password     string         `json:"-" gorm:"-"` // Deprecated: use PasswordHash
-	PasswordHash string         `json:"-" gorm:"column:password_hash;size:255"`
-	Role         string         `json:"role" gorm:"default:'user';size:20"` // admin, user, editor
-	IsActive     bool           `json:"is_active" gorm:"default:true"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+    ID           uint      `json:"id"`
+    Name         string    `json:"name"`
+    Email        string    `json:"email"`
+    Password     string    `json:"-"`
+    PasswordHash string    `json:"-"`
+    Role         string    `json:"role"`
+    IsActive     bool      `json:"is_active"`
+    CreatedAt    time.Time `json:"created_at"`
+    UpdatedAt    time.Time `json:"updated_at"`
 }
 
-func (User) TableName() string {
-	return "users"
-}
-
-// GetID returns string ID for JWT claims
 func (u *User) GetID() string {
-	return fmt.Sprintf("%d", u.ID)
+    return fmt.Sprintf("%d", u.ID)
 }
 
-// MigratePassword moves Password to PasswordHash if needed
 func (u *User) MigratePassword() {
-	if u.Password != "" && u.PasswordHash == "" {
-		u.PasswordHash = u.Password
-		u.Password = ""
-	}
+    if u.Password != "" && u.PasswordHash == "" {
+        u.PasswordHash = u.Password
+        u.Password = ""
+    }
 }

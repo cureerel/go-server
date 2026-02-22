@@ -1,117 +1,182 @@
-## 📐 Architecture Overview
+# gotemplate — Production Go REST API
 
-This template follows **Hexagonal Architecture** (Ports & Adapters). The flow of a request ensures a strict separation of concerns.
+A production-grade REST API built with Go, following **Clean Architecture** principles. Designed to be scalable, maintainable, and infrastructure-agnostic.
 
-### The Request Lifecycle
-1.  **Middleware** (Logger/Auth) runs.
-2.  Request hits `interfaces/http/router`.
-3.  **Handler** parses JSON to DTO.
-4.  Handler calls `application/usecase`.
-5.  **Usecase** validates business rules.
-6.  Usecase calls `domain/repository` method.
-7.  **Infrastructure** (implementation) executes SQL.
-8.  Usecase returns **Domain Entity**.
-9.  **Handler** converts Entity to Response DTO.
-10. **Response** sent.
+---
 
-### The Roles
-*   **Handler:** Waiter (Passes data).
-*   **Middleware:** Bouncer (Checks auth).
-*   **DTO:** Translator (JSON <-> Struct).
-*   **Application:** Manager (Decides *what* to do).
-*   **Domain:** Rulebook (Defines *what* things are).
-*   **Infrastructure:** Worker (Does the actual work/SQL).
+## Architecture
 
+This project follows Clean Architecture with four distinct layers:
 
+```
+domain → application → infrastructure → interfaces
+```
 
+Each layer depends only on the layer inside it. The domain layer has zero external dependencies.
 
+### Layer Breakdown
 
-## 🛡️ SOLID Principles in Action
+**`domain/`** — Pure business logic. No frameworks, no GORM, no HTTP.
+- `entity/` — Business structs (User, Blog, Order, Product, Membership, Payment, Webhook)
+- `repository/` — Interfaces only. Defines what data operations exist, not how.
 
-This template isn't just organized; it's engineered to satisfy the 5 SOLID principles.
+**`application/service/`** — Use cases. Orchestrates domain logic.
+- Calls repository interfaces
+- Enforces business rules (e.g. valid order transitions, membership upgrades)
+- Never imports GORM or Gin
 
-### 1. Single Responsibility (SRP)
-*   **Rule:** Each folder has one job.
-*   **Here:** `domain` holds rules, `interfaces` handles transport, `infrastructure` handles details.
-*   **Benefit:** If SQL syntax changes, you only touch `infrastructure`. You never touch `interfaces`.
+**`infrastructure/`** — All external concerns.
+- `postgres/models/` — GORM structs with `ToDomain()` / `FromDomain()` mappers
+- `postgres/repositories/` — Implements domain repository interfaces using GORM
+- `redis/` — Redis client
+- `factory.go` — Database and Redis constructors
 
-### 2. Open/Closed (OCP)
-*   **Rule:** Software entities should be open for extension but closed for modification.
-*   **Here:** You can add a new `user_redis.go` in infrastructure to implement caching without changing the Domain logic or existing `user_postgres.go`.
+**`interfaces/http/`** — HTTP delivery layer.
+- `handler/` — Gin handlers. Parse request → call service → return response
+- `middleware/` — Auth, RBAC, logger, request ID, error handler
+- `router/` — Route registration with role guards
+- `dto/` — Request/response structs
 
-### 3. Liskov Substitution (LSP)
-*   **Rule:** Objects should be replaceable with instances of their subtypes without altering the correctness of the program.
-*   **Here:** `MockUserRepository` can replace `PostgresUserRepository` in unit tests seamlessly because they both satisfy the `domain/repository` Interface.
+---
 
-### 4. Interface Segregation (ISP)
-*   **Rule:** Clients should not be forced to depend on interfaces they do not use.
-*   **Here:** Domain interfaces are small. Instead of one giant `UserRepository`, you can have `UserReader` and `UserWriter` if needed.
+## Project Structure
 
-### 5. Dependency Inversion (DIP)
-*   **Rule:** Depend on abstractions, not concretions.
-*   **Here:** `application` layer depends on `domain/repository` (Abstractions), NOT `infrastructure/postgres` (Concretions). The dependency points inward toward the domain.
+```
+.
+├── cmd/server/main.go          # Entrypoint — wires everything together
+├── configs/config.yaml         # All configuration (loaded at startup)
+├── migrations/                 # Atlas SQL migration files
+├── atlas.hcl                   # Atlas migration config
+├── internal/
+│   ├── domain/
+│   │   ├── entity/             # Business entities (no GORM tags)
+│   │   └── repository/         # Repository interfaces
+│   ├── application/service/    # Business logic / use cases
+│   ├── infrastructure/
+│   │   ├── postgres/
+│   │   │   ├── models/         # GORM models + domain mappers
+│   │   │   └── repositories/   # Repository implementations
+│   │   ├── redis/              # Redis client
+│   │   ├── dbtypes/            # DB interface types
+│   │   └── factory.go          # DB + Redis constructors
+│   └── interfaces/http/
+│       ├── handler/            # HTTP handlers
+│       ├── middleware/         # Gin middleware
+│       ├── router/             # Route setup
+│       └── dto/                # Request/response DTOs
+└── pkg/
+    ├── logger/                 # Structured logger
+    ├── apperror/               # App error types
+    └── utils/                  # Slug generator etc.
+```
 
+---
 
-## ⚙️ Getting Started
+## Tech Stack
+
+| Concern | Library |
+|---|---|
+| HTTP | Gin |
+| ORM | GORM |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Migrations | Atlas |
+| Auth | JWT (golang-jwt/jwt) |
+| Password | bcrypt |
+| Config | YAML |
+| Logging | Custom structured logger |
+
+---
+
+## Getting Started
 
 ### Prerequisites
-*   Go 1.21+
+- Go 1.21+
+- PostgreSQL
+- Redis
+- Atlas CLI (`brew install ariga/tap/atlas`)
 
+### Setup
 
+```bash
+# Clone and install dependencies
+git clone https://github.com/cureerel/gotemplate
+cd gotemplate
+make deps
 
+# Configure environment
+cp .env.example .env
+# Edit .env with your DB credentials
 
-4.  **Run the Server**
-    *   Using the Makefile (Recommended):
-        ```bash
-        make run
-        ```
-    *   Or manually:
-        ```bash
-        go run cmd/server/main.go
-        ```
+# Run migrations
+make migrate-up
 
-The server will start on `0.0.0.0:8080`.
+# Start server
+make run
+```
 
+### Environment Variables (`.env`)
 
+```env
+DATABASE_URL=postgres://postgres:secret@localhost:5432/mydb?sslmode=disable
+DEV_DATABASE_URL=postgres://postgres:secret@localhost:5432/mydb_dev?sslmode=disable
+```
 
-## 🔧 Development
+### Config (`configs/config.yaml`)
 
-### Makefile Commands
-The `Makefile` acts like a task runner (similar to `npm run` in Node.js).
+```yaml
+server:
+  port: "8080"
+  env: "development"
 
-*   `make run`: Runs the application in development mode.
-*   `make build`: Compiles the binary to `./build/`.
-*   `make clean`: Removes build artifacts.
+database:
+  driver: "postgres"
+  dsn: "host=localhost user=postgres password=secret dbname=mydb port=5432 sslmode=disable"
 
-### Adding a New Feature
-1.  **Define Entity:** Add struct to `internal/domain/entity`.
-2.  **Define Interface:** Add methods to `internal/domain/repository`.
-3.  **Implement Repo:** Write SQL in `internal/infrastructure/persistence`.
-4.  **Write Usecase:** Add business logic to `internal/application/service`.
-5.  **Create Handler:** Add HTTP logic to `internal/interfaces/http/handler`.
-6.  **Register Route:** Add endpoint in `internal/interfaces/http/router`.
+jwt:
+  access_secret: "your-access-secret"
+  refresh_secret: "your-refresh-secret"
 
+webhook:
+  stripe_secret: "your-stripe-secret"
+  razorpay_secret: "your-razorpay-secret"
 
-## ⚠️ Troubleshooting & Lessons Learned
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+```
 
-This template was forged in fire. Here are the specific problems encountered during development and their solutions.
+---
 
-### 1. IPv6 Connection Refused (Supabase)
-*   **Problem:** `dial tcp [2406:...]:5432: connect: no route to host`.
-*   **Cause:** The local machine or ISP preferred IPv6 DNS resolution, but Supabase's free tier direct connection often drops IPv6 packets.
-*   **Solution:** Used the **Transaction Mode** Connection Pooler from Supabase Dashboard (port `6543`). This guarantees a stable IPv4 connection.
+## Make Commands
 
-### 2. GORM Driver Mismatch
-*   **Problem:** `missing method ExecContext` when trying to use `pgx/v5` with GORM.
-*   **Cause:** Mixing the raw `pgx` driver with GORM's `postgres` driver caused type incompatibility.
-*   **Solution:** Stuck to the standard `gorm.io/driver/postgres` for simplicity and compatibility, using `GODEBUG=netdns=go` to handle DNS resolution issues.
+| Command | Description |
+|---|---|
+| `make run` | Run in development |
+| `make build` | Build binary |
+| `make prod-build` | Build Linux/amd64 binary for production |
+| `make deps` | Download and tidy dependencies |
+| `make migrate-up` | Apply all pending migrations |
+| `make migrate-down` | Revert last migration |
+| `make migrate-status` | Show migration status |
+| `make migrate-create NAME=x` | Create new migration file |
+| `make test` | Run tests |
+| `make lint` | Run linter |
+| `make fmt` | Format code |
 
-### 3. Makefile "Missing Separator"
-*   **Problem:** `Makefile:10: *** missing separator. Stop.`
-*   **Cause:** Makefiles require **Tabs** for indentation, not spaces.
-*   **Solution:** Ensured the editor used "Indent with Tabs" for the Makefile.
+---
 
-### 4. Import Paths & Module Structure
-*   **Problem:** `module github.com/...: git ls-remote ... Repository not found`.
-*   **Cause:** Trying to import local folders using full URL paths before the repo existed on GitHub, or misconfigured `go.mod`.
-*   **Solution:** Ensured all imports used the module name defined in `go.mod` (e.g., `github.com/cureerel/gotemplate/internal/...`) and ran `go mod tidy`.
+## Key Design Decisions
+
+**Why separate `entity` from `models`?**
+Domain entities have no GORM tags. This means you can swap Postgres for MongoDB without touching business logic. Models handle the DB mapping; services never know GORM exists.
+
+**Why context everywhere?**
+All repository and service methods accept `context.Context` as the first argument. This allows proper request cancellation, timeouts, and tracing propagation.
+
+**Why typed constants over raw strings?**
+`entity.OrderStatus`, `entity.MembershipPlan`, `entity.Currency` etc. are typed string aliases. This prevents invalid values being passed around silently and makes code self-documenting.
+
+**Why is Payment in WebhookRepository?**
+Payment records are created as a direct result of webhook events for compliance — every payment must trace back to a webhook event. A dedicated `PaymentRepository` should be split out when payment history queries (by user, date range, etc.) are needed.

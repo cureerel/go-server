@@ -1,12 +1,20 @@
 server:
   port: "8080"
+  env: "development"
 
 database:
+  driver: "postgres"
   dsn: "postgresql://postgres.wrluqbtnjjavubkbpmtz:ROOEObVUif02Yw1I@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require&prefer_simple_protocol=true"
 
+redis:
+  addr: "redis-13722.c212.ap-south-1-1.ec2.cloud.redislabs.com:13722"
+  username: "default"
+  password: "ZwUK561dHFT5dx5psNbLPyZBriUtJqcA"
+  db: 0
+
 jwt:
-  access_secret: "your-32-char-secret-here-minimum"
-  refresh_secret: "different-32-char-secret-here"
+  access_secret: "the34charmediumtopassthecharswhichisokandsoundfoo"
+  refresh_secret: "letthereisabadmanofthegamethatisuperdupesounfoor"
 
 webhook:
   stripe_secret: "whsec_your_stripe_webhook_secret_here"
