@@ -1,65 +1,106 @@
 package service
 
 import (
-	"errors"
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
+    "context"
+
+    "golang.org/x/crypto/bcrypt"
+
+    "github.com/cureerel/gotemplate/internal/domain/entity"
+    "github.com/cureerel/gotemplate/internal/domain/repository"
+    "github.com/cureerel/gotemplate/pkg/apperror"
 )
 
 type UserService struct {
-	userRepo repository.UserRepository
+    userRepo repository.UserRepository
 }
 
 func NewUserService(userRepo repository.UserRepository) *UserService {
-	return &UserService{userRepo: userRepo}
+    return &UserService{userRepo: userRepo}
 }
 
-func (s *UserService) GetAll() ([]entity.User, error) {
-	return s.userRepo.GetAll()
+// GetAll returns paginated users
+func (s *UserService) GetAll(ctx context.Context, page, limit int) ([]entity.User, int64, error) {
+    users, total, err := s.userRepo.GetAll(ctx, page, limit)
+    if err != nil {
+        return nil, 0, apperror.NewInternal(err, "failed to fetch users")
+    }
+    return users, total, nil
 }
 
-func (s *UserService) Create(name, email, password string) (*entity.User, error) {
-	// Check if email exists
-	existing, _ := s.userRepo.GetByEmail(email)
-	if existing != nil {
-		return nil, errors.New("email already exists")
-	}
+// Create creates a new user with hashed password
+func (s *UserService) Create(ctx context.Context, name, email, password string) (*entity.User, error) {
+    existing, err := s.userRepo.GetByEmail(ctx, email)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to check existing email")
+    }
+    if existing != nil {
+        return nil, apperror.NewBadRequest("email already exists")
+    }
 
-	user := &entity.User{
-		Name:     name,
-		Email:    email,
-		Password: password, // TODO: Hash password
-	}
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to hash password")
+    }
 
-	if err := s.userRepo.Create(user); err != nil {
-		return nil, err
-	}
-	return user, nil
+    user := &entity.User{
+        Name:     name,
+        Email:    email,
+        Password: string(hashedPassword),
+    }
+
+    if err := s.userRepo.Create(ctx, user); err != nil {
+        return nil, apperror.NewInternal(err, "failed to create user")
+    }
+    return user, nil
 }
 
-func (s *UserService) GetByID(id uint) (*entity.User, error) {
-	return s.userRepo.GetByID(id)
+// GetByID fetches a user by ID
+func (s *UserService) GetByID(ctx context.Context, id uint) (*entity.User, error) {
+    user, err := s.userRepo.GetByID(ctx, id)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to fetch user")
+    }
+    if user == nil {
+        return nil, apperror.NewNotFound("user not found")
+    }
+    return user, nil
 }
 
-func (s *UserService) Update(id uint, name, email string) (*entity.User, error) {
-	user, err := s.userRepo.GetByID(id)
-	if err != nil {
-		return nil, err
-	}
+// Update modifies a user's details; supports optional fields
+func (s *UserService) Update(ctx context.Context, id uint, name, email *string) (*entity.User, error) {
+    user, err := s.userRepo.GetByID(ctx, id)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to fetch user")
+    }
+    if user == nil {
+        return nil, apperror.NewNotFound("user not found")
+    }
 
-	if name != "" {
-		user.Name = name
-	}
-	if email != "" {
-		user.Email = email
-	}
+    if name != nil {
+        user.Name = *name
+    }
+    if email != nil {
+        user.Email = *email
+    }
 
-	if err := s.userRepo.Update(user); err != nil {
-		return nil, err
-	}
-	return user, nil
+    if err := s.userRepo.Update(ctx, user); err != nil {
+        return nil, apperror.NewInternal(err, "failed to update user")
+    }
+    return user, nil
 }
 
-func (s *UserService) Delete(id uint) error {
-	return s.userRepo.Delete(id)
+// Delete removes a user by ID
+func (s *UserService) Delete(ctx context.Context, id uint) error {
+    if err := s.userRepo.Delete(ctx, id); err != nil {
+        return apperror.NewInternal(err, "failed to delete user")
+    }
+    return nil
+}
+
+// Optional: VerifyPassword compares hashed password
+func (s *UserService) VerifyPassword(user *entity.User, password string) error {
+    if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+        return apperror.NewBadRequest("invalid credentials")
+    }
+    return nil
 }

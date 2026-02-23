@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
-    
+
 	"github.com/cureerel/gotemplate/internal/application/service"
 	"github.com/cureerel/gotemplate/internal/domain/entity"
 	"github.com/cureerel/gotemplate/internal/interfaces/dto"
@@ -18,34 +19,50 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{userService: userService}
 }
 
-// GET /api/users
+// GET /users
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
-	users, err := h.userService.GetAll()
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	users, total, err := h.userService.GetAll(c.Request.Context(), page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, users)
+
+	// map users to DTO
+	resp := make([]dto.UserResponse, len(users))
+	for i, u := range users {
+		resp[i] = toUserResponse(&u)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  resp,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
 
-// POST /api/users
+// POST /users
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req dto.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Println("Bind error:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, err := h.userService.Create(req.Name, req.Email, req.Password)
+	user, err := h.userService.Create(c.Request.Context(), req.Name, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, toUserResponse(user))
+	c.JSON(http.StatusCreated, gin.H{"data": toUserResponse(user)})
 }
 
-// GET /api/users/:id
+// GET /users/:id
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -53,7 +70,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.GetByID(uint(id))
+	user, err := h.userService.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -63,10 +80,10 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, toUserResponse(user))
+	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
 }
 
-// PUT /api/users/:id
+// PUT /users/:id
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -80,16 +97,21 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.Update(uint(id), req.Name, req.Email)
+	user, err := h.userService.Update(
+    c.Request.Context(),
+    uint(id),
+    &req.Name,  
+    &req.Email, 
+)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, toUserResponse(user))
+	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
 }
 
-// DELETE /api/users/:id
+// DELETE /users/:id
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -97,7 +119,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userService.Delete(uint(id)); err != nil {
+	if err := h.userService.Delete(c.Request.Context(), uint(id)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -105,12 +127,42 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted successfully"})
 }
 
-// Helper function
+// GET /users/me
+func (h *UserHandler) GetMe(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	id, err := strconv.ParseUint(fmt.Sprintf("%v", userID), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	user, err := h.userService.GetByID(c.Request.Context(), uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
+}
+
+// ---------------- Helper ----------------
+
 func toUserResponse(user *entity.User) dto.UserResponse {
 	return dto.UserResponse{
 		ID:        user.ID,
 		Name:      user.Name,
 		Email:     user.Email,
+		Role:      user.Role,
+		IsActive:  user.IsActive,
 		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }

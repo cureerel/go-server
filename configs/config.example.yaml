@@ -1,0 +1,21 @@
+server:
+  port: "8080"
+  env: "development"
+
+database:
+  driver: "postgres"
+  dsn: "host=localhost user=postgres password=YOUR_PASSWORD dbname=mydb port=5432 sslmode=disable"
+# "host=aws-1-ap-south-1.pooler.supabase.com user=postgres.wrluqbtnjjavubkbpmtz password=YOURPASSWORD dbname=postgres port=6543 sslmode=require prefer_simple_protocol=true"
+
+jwt:
+  access_secret: "YOUR_ACCESS_SECRET"
+  refresh_secret: "YOUR_REFRESH_SECRET"
+
+webhook:
+  stripe_secret: "YOUR_STRIPE_SECRET"
+  razorpay_secret: "YOUR_RAZORPAY_SECRET"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0

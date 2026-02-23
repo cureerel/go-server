@@ -1,6 +1,22 @@
 server:
   port: "8080"
+  env: "development"
 
 database:
-  dsn: "postgresql://postgres.wrluqbtnjjavubkbpmtz:ROOEObVUif02Yw1I@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+  driver: "postgres"
+  dsn: "host=aws-1-ap-south-1.pooler.supabase.com user=postgres.wrluqbtnjjavubkbpmtz password=ROOEObVUif02Yw1I dbname=postgres port=6543 sslmode=require prefer_simple_protocol=true"
+
+redis:
+  addr: "redis-13722.c212.ap-south-1-1.ec2.cloud.redislabs.com:13722"
+  username: "default"
+  password: "ZwUK561dHFT5dx5psNbLPyZBriUtJqcA"
+  db: 0
+
+jwt:
+  access_secret: "the34charmediumtopassthecharswhichisokandsoundfoo"
+  refresh_secret: "letthereisabadmanofthegamethatisuperdupesounfoor"
+
+webhook:
+  stripe_secret: "whsec_your_stripe_webhook_secret_here"
+  razorpay_secret: "your_razorpay_webhook_secret_here"
 

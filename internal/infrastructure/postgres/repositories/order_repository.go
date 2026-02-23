@@ -1,0 +1,67 @@
+package repositories
+
+import (
+    "context"
+    "errors"
+
+    "github.com/cureerel/gotemplate/internal/domain/entity"
+    "github.com/cureerel/gotemplate/internal/domain/repository"
+    "github.com/cureerel/gotemplate/internal/infrastructure/postgres/models"
+    "gorm.io/gorm"
+)
+
+type orderRepository struct {
+    db *gorm.DB
+}
+
+func NewOrderRepository(db *gorm.DB) repository.OrderRepository {
+    return &orderRepository{db: db}
+}
+
+func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error {
+    m := models.OrderFromDomain(order)
+    if err := r.db.WithContext(ctx).Create(m).Error; err != nil {
+        return err
+    }
+    order.ID = m.ID
+    return nil
+}
+
+func (r *orderRepository) GetByID(ctx context.Context, id uint) (*entity.Order, error) {
+    var m models.Order
+    if err := r.db.WithContext(ctx).Preload("Items").First(&m, id).Error; err != nil {
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return nil, nil
+        }
+        return nil, err
+    }
+    return m.ToDomain(), nil
+}
+
+func (r *orderRepository) GetByUser(ctx context.Context, userID uint, page, limit int) ([]entity.Order, int64, error) {
+    var ms []models.Order
+    var total int64
+    offset := (page - 1) * limit
+
+    q := r.db.WithContext(ctx).Model(&models.Order{}).Where("user_id = ?", userID)
+
+    if err := q.Count(&total).Error; err != nil {
+        return nil, 0, err
+    }
+    if err := q.Preload("Items").Offset(offset).Limit(limit).Find(&ms).Error; err != nil {
+        return nil, 0, err
+    }
+
+    orders := make([]entity.Order, len(ms))
+    for i, m := range ms {
+        orders[i] = *m.ToDomain()
+    }
+    return orders, total, nil
+}
+
+func (r *orderRepository) UpdateStatus(ctx context.Context, id uint, status string) error {
+    return r.db.WithContext(ctx).
+        Model(&models.Order{}).
+        Where("id = ?", id).
+        Update("status", status).Error
+}
