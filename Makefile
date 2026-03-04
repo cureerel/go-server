@@ -97,3 +97,6 @@ vet: ## Run go vet
 
 test: ## Run tests
 	go test ./... -v -race -cover
+
+db-reset: ## Drop and recreate public schema
+	psql $(DATABASE_URL) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"

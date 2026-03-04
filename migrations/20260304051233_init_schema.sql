@@ -1,5 +1,3 @@
-
-
 -- ── Users ─────────────────────────────────────────────────────
 CREATE TABLE users (
     id            BIGSERIAL    PRIMARY KEY,
@@ -13,17 +11,17 @@ CREATE TABLE users (
     deleted_at    TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX idx_users_email     ON users(email);
+CREATE UNIQUE INDEX idx_users_email      ON users(email);
 CREATE INDEX        idx_users_deleted_at ON users(deleted_at);
 
 -- ── Refresh Tokens ────────────────────────────────────────────
 CREATE TABLE refresh_tokens (
-    id         BIGSERIAL   PRIMARY KEY,
-    user_id    BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id         BIGSERIAL    PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    revoked    BOOLEAN     NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    expires_at TIMESTAMPTZ  NOT NULL,
+    revoked    BOOLEAN      NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_refresh_tokens_user_id    ON refresh_tokens(user_id);
@@ -38,6 +36,24 @@ CREATE TABLE blacklisted_tokens (
 );
 
 CREATE UNIQUE INDEX idx_blacklisted_tokens_hash ON blacklisted_tokens(token_hash);
+
+-- ── Sessions ──────────────────────────────────────────────────
+CREATE TABLE sessions (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  VARCHAR(255) NOT NULL,
+    user_agent  VARCHAR(512) NOT NULL DEFAULT '',
+    ip_address  VARCHAR(45)  NOT NULL DEFAULT '',
+    expires_at  TIMESTAMPTZ  NOT NULL,
+    revoked     BOOLEAN      NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    last_active TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX        idx_sessions_user_id    ON sessions(user_id);
+CREATE INDEX        idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX        idx_sessions_revoked    ON sessions(revoked);
 
 -- ── Blogs ─────────────────────────────────────────────────────
 CREATE TABLE blogs (
@@ -104,20 +120,20 @@ CREATE INDEX idx_order_items_product_id ON order_items(product_id);
 
 -- ── Payments ──────────────────────────────────────────────────
 CREATE TABLE payments (
-    id               VARCHAR(100) PRIMARY KEY,
-    user_id          BIGINT       NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    order_id         VARCHAR(100) NOT NULL,
-    amount           BIGINT       NOT NULL CHECK (amount > 0),
-    currency         VARCHAR(10)  NOT NULL,
-    status           VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                         CHECK (status IN ('pending','completed','failed','refunded')),
-    provider         VARCHAR(50)  NOT NULL CHECK (provider IN ('stripe','razorpay')),
-    provider_txn_id  VARCHAR(255),
-    customer_email   VARCHAR(100) NOT NULL,
-    description      TEXT,
-    refunded_at      TIMESTAMPTZ,
-    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    id              VARCHAR(100) PRIMARY KEY,
+    user_id         BIGINT       NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    order_id        VARCHAR(100) NOT NULL,
+    amount          BIGINT       NOT NULL CHECK (amount > 0),
+    currency        VARCHAR(10)  NOT NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','completed','failed','refunded')),
+    provider        VARCHAR(50)  NOT NULL CHECK (provider IN ('stripe','razorpay')),
+    provider_txn_id VARCHAR(255),
+    customer_email  VARCHAR(100) NOT NULL,
+    description     TEXT,
+    refunded_at     TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_payments_user_id  ON payments(user_id);
@@ -136,8 +152,8 @@ CREATE TABLE webhook_events (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_webhook_events_provider   ON webhook_events(provider);
-CREATE INDEX idx_webhook_events_processed  ON webhook_events(processed);
+CREATE INDEX idx_webhook_events_provider  ON webhook_events(provider);
+CREATE INDEX idx_webhook_events_processed ON webhook_events(processed);
 
 -- ── Memberships ───────────────────────────────────────────────
 CREATE TABLE memberships (

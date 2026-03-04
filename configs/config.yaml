@@ -2,10 +2,15 @@ server:
   port: "8080"
   env: "development"
 
+
 database:
   driver: "postgres"
-  dsn: "host=aws-1-ap-south-1.pooler.supabase.com user=postgres.wrluqbtnjjavubkbpmtz password=ROOEObVUif02Yw1I dbname=postgres port=6543 sslmode=require prefer_simple_protocol=true"
+  dsn: "host=aws-1-ap-south-1.pooler.supabase.com user=postgres.wrluqbtnjjavubkbpmtz password=KYyZGOuEyn1pFE4o dbname=postgres port=6543 sslmode=require prefer_simple_protocol=true"
 
+
+# database:
+#   driver: "postgres"
+#   dsn: "host=localhost user=myuser password=admin123 dbname=postgresdb2 port=5432 sslmode=disable"
 redis:
   addr: "redis-13722.c212.ap-south-1-1.ec2.cloud.redislabs.com:13722"
   username: "default"
