@@ -40,47 +40,57 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req dto.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    var req dto.LoginRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	token, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
-		return
-	}
+    meta := service.LoginMeta{
+        UserAgent: c.GetHeader("User-Agent"),
+        IPAddress: c.ClientIP(),
+    }
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": dto.AuthResponse{
-			AccessToken:  token.AccessToken,
-			RefreshToken: token.RefreshToken,
-			ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
-		},
-	})
+    token, err := h.authService.Login(c.Request.Context(), req.Email, req.Password, meta)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+        return
+    }
+
+    c.JSON(http.StatusCreated, gin.H{
+        "data": dto.AuthResponse{
+            AccessToken:  token.AccessToken,
+            RefreshToken: token.RefreshToken,
+            ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
+        },
+    })
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req dto.RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+    var req dto.RefreshRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-	token, err := h.authService.Refresh(c.Request.Context(), req.RefreshToken)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
-		return
-	}
+    meta := service.LoginMeta{
+        UserAgent: c.GetHeader("User-Agent"),
+        IPAddress: c.ClientIP(),
+    }
 
-	c.JSON(http.StatusOK, gin.H{
-		"data": dto.AuthResponse{
-			AccessToken:  token.AccessToken,
-			RefreshToken: token.RefreshToken,
-			ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
-		},
-	})
+    token, err := h.authService.Refresh(c.Request.Context(), req.RefreshToken, meta)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "data": dto.AuthResponse{
+            AccessToken:  token.AccessToken,
+            RefreshToken: token.RefreshToken,
+            ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
+        },
+    })
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

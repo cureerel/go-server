@@ -64,3 +64,10 @@ func (r *authRepository) IsTokenBlacklisted(ctx context.Context, tokenHash strin
     }
     return count > 0, nil
 }
+
+func (r *authRepository) RevokeAllRefreshTokens(ctx context.Context, userID uint) error {
+    return r.db.WithContext(ctx).
+        Model(&models.RefreshToken{}).
+        Where("user_id = ? AND revoked = false", userID).
+        Update("revoked", true).Error
+}

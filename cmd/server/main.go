@@ -106,6 +106,7 @@ func main() {
     userRepo       := repositories.NewUserRepository(db)
     blogRepo       := repositories.NewBlogRepository(db)
     authRepo       := repositories.NewAuthRepository(db)
+    sessionRepo    := repositories.NewSessionRepository(db) 
     webhookRepo    := repositories.NewWebhookRepository(db)
     productRepo    := repositories.NewProductRepository(db)
     orderRepo      := repositories.NewOrderRepository(db)
@@ -114,10 +115,10 @@ func main() {
     // ── Services ──────────────────────────────────────────────
     userService       := service.NewUserService(userRepo)
     blogService       := service.NewBlogService(blogRepo)
-    authService       := service.NewAuthService(userRepo, authRepo, service.JWTConfig{
-        AccessSecret:  cfg.JWT.AccessSecret,
-        RefreshSecret: cfg.JWT.RefreshSecret,
-    })
+   authService := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
+    AccessSecret:  cfg.JWT.AccessSecret,
+    RefreshSecret: cfg.JWT.RefreshSecret,
+})
     webhookService    := service.NewWebhookService(webhookRepo, service.WebhookConfig{
         StripeSecret:   cfg.Webhook.StripeSecret,
         RazorpaySecret: cfg.Webhook.RazorpaySecret,
