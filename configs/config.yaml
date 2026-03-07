@@ -25,3 +25,9 @@ webhook:
   stripe_secret: "whsec_your_stripe_webhook_secret_here"
   razorpay_secret: "your_razorpay_webhook_secret_here"
 
+cors:
+  allowed_origins:
+    - "https://your-app.vercel.app"
+    - "https://your-app-git-main-yourusername.vercel.app"
+    - "http://localhost:3000"
+

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,6 +28,11 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	Webhook  WebhookConfig  `yaml:"webhook"`
 	Redis    RedisConfig    `yaml:"redis"`
+	CORS     CORSConfig     `yaml:"cors"`
+}
+
+type CORSConfig struct {
+	AllowedOrigins []string `yaml:"allowed_origins"`
 }
 
 type ServerConfig struct {
@@ -61,11 +67,10 @@ func LoadConfig() (*Config, error) {
 	var cfg Config
 
 	// Try loading config.yaml from a few conventional locations.
-	// On Render/Railway, env vars take full priority so this is optional.
 	candidates := []string{
-		"configs/config.yaml",         // relative to CWD (binary run from repo root)
-		"/app/configs/config.yaml",    // common Docker WORKDIR
-		"/etc/app/config.yaml",        // mounted secret volume
+		"configs/config.yaml",
+		"/app/configs/config.yaml",
+		"/etc/app/config.yaml",
 	}
 	for _, path := range candidates {
 		if _, err := os.Stat(path); err == nil {
@@ -80,7 +85,7 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	// ENV vars always win — set these in Render/Railway dashboard.
+	// ENV vars always win for these fields
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Server.Port = v
 	}
@@ -112,7 +117,36 @@ func LoadConfig() (*Config, error) {
 		cfg.Redis.Password = v
 	}
 
+	// CORS: Merge config.yaml origins with env var origins (env appends to config)
+	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
+		for _, origin := range splitAndTrim(v, ",") {
+			if origin != "" && !contains(cfg.CORS.AllowedOrigins, origin) {
+				cfg.CORS.AllowedOrigins = append(cfg.CORS.AllowedOrigins, origin)
+			}
+		}
+	}
+
 	return &cfg, nil
+}
+
+func splitAndTrim(s, sep string) []string {
+	parts := []string{}
+	for _, part := range strings.Split(s, sep) {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------------- Main ----------------
@@ -192,6 +226,7 @@ func main() {
 		paymentHandler,
 		membershipHandler,
 		log,
+		cfg.CORS.AllowedOrigins,
 	)
 
 	// ----- Server -----
