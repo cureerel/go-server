@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -59,41 +57,59 @@ type JWTConfig struct {
 }
 
 // ---------------- Load Config ----------------
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig() (*Config, error) {
 	var cfg Config
 
-	// Load YAML if exists
-	if _, err := os.Stat(path); err == nil {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse config file: %w", err)
+	// Try loading config.yaml from a few conventional locations.
+	// On Render/Railway, env vars take full priority so this is optional.
+	candidates := []string{
+		"configs/config.yaml",         // relative to CWD (binary run from repo root)
+		"/app/configs/config.yaml",    // common Docker WORKDIR
+		"/etc/app/config.yaml",        // mounted secret volume
+	}
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
+			}
+			if err := yaml.Unmarshal(data, &cfg); err != nil {
+				return nil, fmt.Errorf("failed to parse config file %s: %w", path, err)
+			}
+			break
 		}
 	}
 
-	// Override with ENV if set (Render)
-	if port := os.Getenv("PORT"); port != "" {
-		cfg.Server.Port = port
+	// ENV vars always win — set these in Render/Railway dashboard.
+	if v := os.Getenv("PORT"); v != "" {
+		cfg.Server.Port = v
 	}
-	if dbdsn := os.Getenv("DATABASE_URL"); dbdsn != "" {
-		cfg.Database.DSN = dbdsn
+	if v := os.Getenv("ENV"); v != "" {
+		cfg.Server.Env = v
 	}
-	if access := os.Getenv("JWT_ACCESS_SECRET"); access != "" {
-		cfg.JWT.AccessSecret = access
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		cfg.Database.DSN = v
 	}
-	if refresh := os.Getenv("JWT_REFRESH_SECRET"); refresh != "" {
-		cfg.JWT.RefreshSecret = refresh
+	if v := os.Getenv("JWT_ACCESS_SECRET"); v != "" {
+		cfg.JWT.AccessSecret = v
 	}
-	if stripe := os.Getenv("STRIPE_SECRET"); stripe != "" {
-		cfg.Webhook.StripeSecret = stripe
+	if v := os.Getenv("JWT_REFRESH_SECRET"); v != "" {
+		cfg.JWT.RefreshSecret = v
 	}
-	if razor := os.Getenv("RAZORPAY_SECRET"); razor != "" {
-		cfg.Webhook.RazorpaySecret = razor
+	if v := os.Getenv("STRIPE_SECRET"); v != "" {
+		cfg.Webhook.StripeSecret = v
 	}
-	if redisAddr := os.Getenv("REDIS_ADDR"); redisAddr != "" {
-		cfg.Redis.Addr = redisAddr
+	if v := os.Getenv("RAZORPAY_SECRET"); v != "" {
+		cfg.Webhook.RazorpaySecret = v
+	}
+	if v := os.Getenv("REDIS_ADDR"); v != "" {
+		cfg.Redis.Addr = v
+	}
+	if v := os.Getenv("REDIS_USERNAME"); v != "" {
+		cfg.Redis.Username = v
+	}
+	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
+		cfg.Redis.Password = v
 	}
 
 	return &cfg, nil
@@ -103,12 +119,7 @@ func LoadConfig(path string) (*Config, error) {
 func main() {
 	log := logger.New()
 
-	// ----- Config -----
-	_, b, _, _ := runtime.Caller(0)
-	basepath := filepath.Join(filepath.Dir(b), "../..")
-	configPath := filepath.Join(basepath, "configs", "config.yaml")
-
-	cfg, err := LoadConfig(configPath)
+	cfg, err := LoadConfig()
 	if err != nil {
 		log.Fatal("Failed to load config", logger.Field{Key: "error", Value: err})
 	}
@@ -186,7 +197,7 @@ func main() {
 	// ----- Server -----
 	port := cfg.Server.Port
 	if port == "" {
-		port = "8080" // fallback for local dev
+		port = "8080"
 	}
 
 	srv := &http.Server{
