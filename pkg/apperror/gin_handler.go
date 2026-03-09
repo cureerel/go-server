@@ -1,19 +1,10 @@
+// pkg/apperror/gin_handler.go
 package apperror
 
-import (
-    "github.com/gin-gonic/gin"
-)
+import "github.com/gin-gonic/gin"
 
-// Respond writes error response to gin context
-func (e *AppError) Respond(c *gin.Context) {
-    c.JSON(e.HTTPStatus(), gin.H{
-        "error": e.PublicError(),
-        "code":  e.Code,
-    })
-}
-
-// RespondAndAbort stops further handlers
-func (e *AppError) RespondAndAbort(c *gin.Context) {
-    e.Respond(c)
-    c.Abort()
+// Respond writes a JSON error response using AppError if available,
+// otherwise falls back to a generic 500. Used by all handlers via respondErr().
+func Respond(c *gin.Context, err error) {
+	c.JSON(HTTPStatus(err), gin.H{"error": PublicMessage(err)})
 }

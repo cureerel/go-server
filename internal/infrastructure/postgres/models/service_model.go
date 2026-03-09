@@ -1,40 +1,38 @@
-// internal/infrastructure/postgres/models/blog_model.go
+// internal/infrastructure/postgres/models/service_model.go
 package models
 
 import (
 	"time"
-	"gorm.io/gorm"
+
 	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"gorm.io/gorm"
 )
 
-type Blog struct {
+type Service struct {
 	ID            uint           `gorm:"primaryKey"`
+	OwnerID       uint           `gorm:"not null;index"`
 	Title         string         `gorm:"not null;size:200"`
-	Slug          string         `gorm:"uniqueIndex;not null;size:200"`
-	Content       string         `gorm:"type:text"`
-	AuthorID      uint           `gorm:"not null;index"`
-	Status        string         `gorm:"default:'draft';size:20"`
-	Tags          string         `gorm:"size:500"`
+	Description   string         `gorm:"type:text"`
+	PriceUSDCents int64          `gorm:"column:price_usd_cents;not null"`
+	Status        string         `gorm:"default:'pending';size:20;index"`
 	CoverImageURL string         `gorm:"column:cover_image_url;type:text"`
 	CoverImageKey string         `gorm:"column:cover_image_key;type:text"`
 	ViewsTotal    int64          `gorm:"column:views_total;default:0"`
-	CreatedAt     time.Time      `gorm:"column:created_at"`
-	UpdatedAt     time.Time      `gorm:"column:updated_at"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
-	Author        User           `gorm:"foreignKey:AuthorID"`
 }
 
-func (Blog) TableName() string { return "blogs" }
+func (Service) TableName() string { return "services" }
 
-func (m *Blog) ToDomain() *entity.Blog {
-	return &entity.Blog{
+func (m *Service) ToDomain() *entity.Service {
+	return &entity.Service{
 		ID:            m.ID,
+		OwnerID:       m.OwnerID,
 		Title:         m.Title,
-		Slug:          m.Slug,
-		Content:       m.Content,
-		AuthorID:      m.AuthorID,
+		Description:   m.Description,
+		PriceUSDCents: m.PriceUSDCents,
 		Status:        m.Status,
-		Tags:          m.Tags,
 		CoverImageURL: m.CoverImageURL,
 		CoverImageKey: m.CoverImageKey,
 		ViewsTotal:    m.ViewsTotal,
@@ -43,15 +41,14 @@ func (m *Blog) ToDomain() *entity.Blog {
 	}
 }
 
-func BlogFromDomain(e *entity.Blog) *Blog {
-	return &Blog{
+func ServiceFromDomain(e *entity.Service) *Service {
+	return &Service{
 		ID:            e.ID,
+		OwnerID:       e.OwnerID,
 		Title:         e.Title,
-		Slug:          e.Slug,
-		Content:       e.Content,
-		AuthorID:      e.AuthorID,
+		Description:   e.Description,
+		PriceUSDCents: e.PriceUSDCents,
 		Status:        e.Status,
-		Tags:          e.Tags,
 		CoverImageURL: e.CoverImageURL,
 		CoverImageKey: e.CoverImageKey,
 		ViewsTotal:    e.ViewsTotal,

@@ -7,3 +7,11 @@ make migrate-create NAME=add_sessions
 
 
  make migrate-up
+
+
+
+ # find 
+
+  find . -type f -name "*.go" | grep -v vendor | sort
+
+  
