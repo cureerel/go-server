@@ -36,39 +36,13 @@ type Config struct {
 	Platform PlatformConfig `yaml:"platform"`
 }
 
-type ServerConfig struct {
-	Port string `yaml:"port"`
-	Env  string `yaml:"env"`
-}
-
-type DatabaseConfig struct {
-	DSN string `yaml:"dsn"`
-}
-
-type JWTConfig struct {
-	AccessSecret  string `yaml:"access_secret"`
-	RefreshSecret string `yaml:"refresh_secret"`
-}
-
-type CORSConfig struct {
-	AllowedOrigins []string `yaml:"allowed_origins"`
-}
-
-type EmailConfig struct {
-	ResendAPIKey string `yaml:"resend_api_key"`
-	FromName     string `yaml:"from_name"`
-	FromAddress  string `yaml:"from_address"`
-}
-
-type StorageConfig struct {
-	CloudinaryCloudName string `yaml:"cloudinary_cloud_name"`
-	CloudinaryAPIKey    string `yaml:"cloudinary_api_key"`
-	CloudinaryAPISecret string `yaml:"cloudinary_api_secret"`
-}
-
-type PlatformConfig struct {
-	OTPExpiryMinutes int `yaml:"otp_expiry_minutes"`
-}
+type ServerConfig   struct { Port string `yaml:"port"`; Env string `yaml:"env"` }
+type DatabaseConfig struct { DSN string `yaml:"dsn"` }
+type JWTConfig      struct { AccessSecret string `yaml:"access_secret"`; RefreshSecret string `yaml:"refresh_secret"` }
+type CORSConfig     struct { AllowedOrigins []string `yaml:"allowed_origins"` }
+type EmailConfig    struct { ResendAPIKey string `yaml:"resend_api_key"`; FromName string `yaml:"from_name"`; FromAddress string `yaml:"from_address"` }
+type StorageConfig  struct { CloudinaryCloudName string `yaml:"cloudinary_cloud_name"`; CloudinaryAPIKey string `yaml:"cloudinary_api_key"`; CloudinaryAPISecret string `yaml:"cloudinary_api_secret"` }
+type PlatformConfig struct { OTPExpiryMinutes int `yaml:"otp_expiry_minutes"` }
 
 func LoadConfig() (*Config, error) {
 	var cfg Config
@@ -79,33 +53,28 @@ func LoadConfig() (*Config, error) {
 			break
 		}
 	}
-
-	env := func(key, fallback string) string {
-		if v := os.Getenv(key); v != "" {
-			return v
-		}
-		return fallback
+	env := func(k, fb string) string {
+		if v := os.Getenv(k); v != "" { return v }
+		return fb
 	}
-
-	cfg.Server.Port        = env("PORT",                 cfg.Server.Port)
-	cfg.Server.Env         = env("APP_ENV",              cfg.Server.Env)
-	cfg.Database.DSN       = env("DATABASE_URL",         cfg.Database.DSN)
-	cfg.JWT.AccessSecret   = env("JWT_ACCESS_SECRET",    cfg.JWT.AccessSecret)
-	cfg.JWT.RefreshSecret  = env("JWT_REFRESH_SECRET",   cfg.JWT.RefreshSecret)
-	cfg.Email.ResendAPIKey = env("RESEND_API_KEY",       cfg.Email.ResendAPIKey)
-	cfg.Email.FromName     = env("EMAIL_FROM_NAME",      cfg.Email.FromName)
-	cfg.Email.FromAddress  = env("EMAIL_FROM_ADDRESS",   cfg.Email.FromAddress)
+	cfg.Server.Port               = env("PORT",                  cfg.Server.Port)
+	cfg.Server.Env                = env("APP_ENV",               cfg.Server.Env)
+	cfg.Database.DSN              = env("DATABASE_URL",          cfg.Database.DSN)
+	cfg.JWT.AccessSecret          = env("JWT_ACCESS_SECRET",     cfg.JWT.AccessSecret)
+	cfg.JWT.RefreshSecret         = env("JWT_REFRESH_SECRET",    cfg.JWT.RefreshSecret)
+	cfg.Email.ResendAPIKey        = env("RESEND_API_KEY",        cfg.Email.ResendAPIKey)
+	cfg.Email.FromName            = env("EMAIL_FROM_NAME",       cfg.Email.FromName)
+	cfg.Email.FromAddress         = env("EMAIL_FROM_ADDRESS",    cfg.Email.FromAddress)
 	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME", cfg.Storage.CloudinaryCloudName)
 	cfg.Storage.CloudinaryAPIKey    = env("CLOUDINARY_API_KEY",    cfg.Storage.CloudinaryAPIKey)
 	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET", cfg.Storage.CloudinaryAPISecret)
 
-	if cfg.Server.Port == ""      { cfg.Server.Port = "8080" }
-	if cfg.Email.FromName == ""   { cfg.Email.FromName = "Cureerel" }
+	if cfg.Server.Port == ""            { cfg.Server.Port = "8080" }
+	if cfg.Email.FromName == ""         { cfg.Email.FromName = "Cureerel" }
 	if cfg.Platform.OTPExpiryMinutes == 0 { cfg.Platform.OTPExpiryMinutes = 15 }
 	if v := os.Getenv("OTP_EXPIRY_MINUTES"); v != "" {
 		fmt.Sscanf(v, "%d", &cfg.Platform.OTPExpiryMinutes)
 	}
-
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
 		for _, o := range strings.Split(v, ",") {
 			if o = strings.TrimSpace(o); o != "" {
@@ -113,7 +82,6 @@ func LoadConfig() (*Config, error) {
 			}
 		}
 	}
-
 	return &cfg, nil
 }
 
@@ -131,14 +99,11 @@ func main() {
 	}
 
 	// ── Database ──────────────────────────────────────────────
-	// postgres.New returns (dbtypes.SQLDB, error).
-	// GormDB() returns interface{} — assert to *gorm.DB for repositories.
 	dbClient, err := postgres.New(cfg.Database.DSN)
 	if err != nil {
-		log.Fatal("database connection failed", logger.Field{Key: "error", Value: err})
+		log.Fatal("database failed", logger.Field{Key: "error", Value: err})
 	}
 	defer dbClient.Close()
-
 	db := dbClient.GormDB().(*gorm.DB)
 
 	// ── Email ─────────────────────────────────────────────────
@@ -146,20 +111,16 @@ func main() {
 	if cfg.Email.ResendAPIKey != "" {
 		emailClient = resend.New(cfg.Email.ResendAPIKey)
 	} else {
-		log.Info("RESEND_API_KEY not set — using noop email")
+		log.Info("RESEND_API_KEY not set — noop email")
 		emailClient = &noopEmail{}
 	}
 
 	// ── Storage ───────────────────────────────────────────────
 	var storageClient storageinfra.Provider
 	if cfg.Storage.CloudinaryCloudName != "" {
-		storageClient = cloudinary.New(
-			cfg.Storage.CloudinaryCloudName,
-			cfg.Storage.CloudinaryAPIKey,
-			cfg.Storage.CloudinaryAPISecret,
-		)
+		storageClient = cloudinary.New(cfg.Storage.CloudinaryCloudName, cfg.Storage.CloudinaryAPIKey, cfg.Storage.CloudinaryAPISecret)
 	} else {
-		log.Info("Cloudinary not configured — using noop storage")
+		log.Info("Cloudinary not configured — noop storage")
 		storageClient = &noopStorage{}
 	}
 
@@ -170,26 +131,27 @@ func main() {
 	sessionRepo := repositories.NewSessionRepository(db)
 	otpRepo     := repositories.NewOTPRepository(db)
 	serviceRepo := repositories.NewServiceRepository(db)
+	orderRepo   := repositories.NewOrderRepository(db)
+	paymentRepo := repositories.NewPaymentRepository(db)
 
 	// ── Services ──────────────────────────────────────────────
-	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
-		AccessSecret:  cfg.JWT.AccessSecret,
-		RefreshSecret: cfg.JWT.RefreshSecret,
+	authService    := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
+		AccessSecret: cfg.JWT.AccessSecret, RefreshSecret: cfg.JWT.RefreshSecret,
 	})
-	otpService := service.NewOTPService(
-		otpRepo, userRepo, emailClient,
-		cfg.Email.FromName, cfg.Email.FromAddress,
-		cfg.Platform.OTPExpiryMinutes,
-	)
+	otpService     := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
 	userService    := service.NewUserService(userRepo)
 	blogService    := service.NewBlogService(blogRepo)
 	serviceService := service.NewServiceService(serviceRepo)
+	orderService   := service.NewOrderService(orderRepo, serviceRepo)
+	paymentService := service.NewPaymentService(paymentRepo, orderRepo)
 
 	// ── Handlers ──────────────────────────────────────────────
 	authHandler    := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
 	userHandler    := handler.NewUserHandler(userService)
 	blogHandler    := handler.NewBlogHandler(blogService)
 	serviceHandler := handler.NewServiceHandler(serviceService)
+	orderHandler   := handler.NewOrderHandler(orderService, paymentService)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
 	uploadHandler  := handler.NewUploadHandler(storageClient)
 
 	// ── Router ────────────────────────────────────────────────
@@ -199,12 +161,13 @@ func main() {
 		authHandler,
 		authService,
 		serviceHandler,
+		orderHandler,
+		paymentHandler,
 		uploadHandler,
 		log,
 		cfg.CORS.AllowedOrigins,
 	)
 
-	// ── HTTP server ───────────────────────────────────────────
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
 		Handler:      r,
@@ -223,7 +186,6 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-
 	log.Info("shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -236,14 +198,12 @@ func main() {
 // ── Noop providers ────────────────────────────────────────────
 
 type noopEmail struct{}
-
 func (n *noopEmail) Send(_ context.Context, e emailinfra.Email) error {
 	fmt.Printf("[email] To: %v Subject: %s\n", e.To, e.Subject)
 	return nil
 }
 
 type noopStorage struct{}
-
 func (n *noopStorage) Upload(_ context.Context, _ storageinfra.UploadInput) (storageinfra.UploadResult, error) {
 	return storageinfra.UploadResult{URL: "https://placeholder.com/image.jpg", Key: "noop"}, nil
 }

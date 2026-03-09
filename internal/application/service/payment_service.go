@@ -1,106 +1,128 @@
+// internal/application/service/payment_service.go
 package service
 
 import (
-    "context"
-    "errors"
-    "fmt"
-    "time"
+	"context"
+	"fmt"
+	"time"
 
-    "github.com/cureerel/gotemplate/internal/domain/entity"
-    "github.com/cureerel/gotemplate/internal/domain/repository"
+	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"github.com/cureerel/gotemplate/internal/domain/repository"
+	"github.com/cureerel/gotemplate/pkg/apperror"
 )
 
 type PaymentService struct {
-    paymentRepo repository.WebhookRepository // reuses webhook repo since Payment is stored there
-    orderRepo   repository.OrderRepository
+	paymentRepo repository.PaymentRepository
+	orderRepo   repository.OrderRepository
 }
 
-func NewPaymentService(paymentRepo repository.WebhookRepository, orderRepo repository.OrderRepository) *PaymentService {
-    return &PaymentService{
-        paymentRepo: paymentRepo,
-        orderRepo:   orderRepo,
-    }
+func NewPaymentService(paymentRepo repository.PaymentRepository, orderRepo repository.OrderRepository) *PaymentService {
+	return &PaymentService{paymentRepo: paymentRepo, orderRepo: orderRepo}
 }
 
-type RecordPaymentInput struct {
-    UserID        uint
-    OrderID       string
-    Amount        int64
-    Currency      entity.Currency
-    Provider      entity.PaymentProvider
-    ProviderTxnID string
-    CustomerEmail string
-    Description   string
-}
+// InitPayment creates a pending payment record for an order.
+// Called right after order creation, before the provider is contacted.
+func (s *PaymentService) InitPayment(ctx context.Context, order *entity.Order, provider entity.PaymentProvider, customerEmail string) (*entity.Payment, error) {
+	// Generate a deterministic payment ID: provider-orderID-timestamp
+	id := fmt.Sprintf("%s-%d-%d", string(provider), order.ID, time.Now().UnixMilli())
 
-func (s *PaymentService) Record(ctx context.Context, input RecordPaymentInput) (*entity.Payment, error) {
-    payment := &entity.Payment{
-        ID:            fmt.Sprintf("pay_%d", time.Now().UnixNano()),
-        UserID:        input.UserID,
-        OrderID:       input.OrderID,
-        Amount:        input.Amount,
-        Currency:      input.Currency,
-        Status:        entity.PaymentPending,
-        Provider:      input.Provider,
-        ProviderTxnID: input.ProviderTxnID,
-        CustomerEmail: input.CustomerEmail,
-        Description:   input.Description,
-        CreatedAt:     time.Now(),
-        UpdatedAt:     time.Now(),
-    }
-
-    if err := s.paymentRepo.SavePayment(ctx, payment); err != nil {
-        return nil, err
-    }
-    return payment, nil
-}
-
-func (s *PaymentService) MarkCompleted(ctx context.Context, id string) error {
-    payment, err := s.paymentRepo.GetPaymentByID(ctx, id)
-    if err != nil {
-        return err
-    }
-    if payment == nil {
-        return errors.New("payment not found")
-    }
-    if payment.Status != entity.PaymentPending {
-        return errors.New("only pending payments can be marked completed")
-    }
-    return s.paymentRepo.UpdatePaymentStatus(ctx, id, string(entity.PaymentCompleted))
-}
-
-func (s *PaymentService) MarkFailed(ctx context.Context, id string) error {
-    payment, err := s.paymentRepo.GetPaymentByID(ctx, id)
-    if err != nil {
-        return err
-    }
-    if payment == nil {
-        return errors.New("payment not found")
-    }
-    return s.paymentRepo.UpdatePaymentStatus(ctx, id, string(entity.PaymentFailed))
-}
-
-func (s *PaymentService) Refund(ctx context.Context, id string) error {
-    payment, err := s.paymentRepo.GetPaymentByID(ctx, id)
-    if err != nil {
-        return err
-    }
-    if payment == nil {
-        return errors.New("payment not found")
-    }
-    if payment.Status != entity.PaymentCompleted {
-        return errors.New("only completed payments can be refunded")
-    }
-    return s.paymentRepo.UpdatePaymentStatus(ctx, id, string(entity.PaymentRefunded))
+	payment := &entity.Payment{
+		ID:            id,
+		OrderID:       order.ID,
+		UserID:        order.UserID,
+		AmountCents:   order.TotalCents,
+		Currency:      order.Currency,
+		Status:        entity.PaymentPending,
+		Provider:      provider,
+		CustomerEmail: customerEmail,
+		Description:   fmt.Sprintf("Order #%d", order.ID),
+	}
+	if err := s.paymentRepo.Create(ctx, payment); err != nil {
+		return nil, apperror.NewInternal(err, "failed to create payment record")
+	}
+	// Attach provider to order
+	_ = s.orderRepo.AttachPaymentProvider(ctx, order.ID, string(provider))
+	return payment, nil
 }
 
 func (s *PaymentService) GetByID(ctx context.Context, id string) (*entity.Payment, error) {
-    payment, err := s.paymentRepo.GetPaymentByID(ctx, id)
-    if err != nil {
-        return nil, err
-    }
-    if payment == nil {
-        return nil, errors.New("payment not found")
-    }
-    return payment, nil
+	p, err := s.paymentRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, apperror.NewInternal(err, "failed to fetch payment")
+	}
+	if p == nil {
+		return nil, apperror.NewNotFound("payment not found")
+	}
+	return p, nil
+}
+
+func (s *PaymentService) GetByOrderID(ctx context.Context, orderID uint) (*entity.Payment, error) {
+	p, err := s.paymentRepo.GetByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, apperror.NewInternal(err, "failed to fetch payment")
+	}
+	if p == nil {
+		return nil, apperror.NewNotFound("payment not found for this order")
+	}
+	return p, nil
+}
+
+// GetAll returns all payments (admin use).
+func (s *PaymentService) GetAll(ctx context.Context, page, limit int, status string) ([]entity.Payment, int64, error) {
+	if page < 1 { page = 1 }
+	if limit < 1 || limit > 100 { limit = 10 }
+	return s.paymentRepo.GetAll(ctx, repository.PaymentFilter{
+		Page: page, Limit: limit, Status: status,
+	})
+}
+
+// MarkCompleted is called by webhook or admin when provider confirms payment.
+// Also transitions the linked order to confirmed.
+func (s *PaymentService) MarkCompleted(ctx context.Context, id string) error {
+	p, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if p.IsCompleted() {
+		return nil // idempotent
+	}
+	if err := s.paymentRepo.UpdateStatus(ctx, id, entity.PaymentCompleted); err != nil {
+		return apperror.NewInternal(err, "failed to update payment status")
+	}
+	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderConfirmed)
+	return nil
+}
+
+// MarkFailed is called when provider reports failure.
+func (s *PaymentService) MarkFailed(ctx context.Context, id string) error {
+	p, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.paymentRepo.UpdateStatus(ctx, id, entity.PaymentFailed); err != nil {
+		return apperror.NewInternal(err, "failed to update payment status")
+	}
+	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderCancelled)
+	return nil
+}
+
+// Refund marks a completed payment as refunded.
+func (s *PaymentService) Refund(ctx context.Context, id string, refundID string) error {
+	p, err := s.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !p.IsCompleted() {
+		return apperror.NewBadRequest("only completed payments can be refunded")
+	}
+	if err := s.paymentRepo.MarkRefunded(ctx, id, refundID); err != nil {
+		return apperror.NewInternal(err, "failed to mark refund")
+	}
+	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderCancelled)
+	return nil
+}
+
+// SetProviderTxnID stores the provider's transaction reference after initiation.
+func (s *PaymentService) SetProviderTxnID(ctx context.Context, id string, txnID string) error {
+	return s.paymentRepo.SetProviderTxnID(ctx, id, txnID)
 }

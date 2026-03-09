@@ -20,6 +20,8 @@ func SetupRouter(
 	authHandler    *handler.AuthHandler,
 	authService    *service.AuthService,
 	serviceHandler *handler.ServiceHandler,
+	orderHandler   *handler.OrderHandler,
+	paymentHandler *handler.PaymentHandler,
 	uploadHandler  *handler.UploadHandler,
 	log            logger.Logger,
 	allowedOrigins []string,
@@ -32,8 +34,6 @@ func SetupRouter(
 	if len(origins) == 0 {
 		origins = []string{"http://localhost:3000", "http://localhost:5173"}
 	}
-	log.Info("CORS", logger.Field{Key: "origins", Value: origins})
-
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -42,7 +42,6 @@ func SetupRouter(
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger(log))
 	r.Use(middleware.ErrorHandler())
@@ -54,7 +53,6 @@ func SetupRouter(
 	api := r.Group("/api")
 
 	// ── Public ────────────────────────────────────────────────
-
 	auth := api.Group("/auth")
 	{
 		auth.POST("/register/init",         authHandler.RegisterInit)
@@ -66,12 +64,10 @@ func SetupRouter(
 		auth.POST("/refresh",               authHandler.Refresh)
 	}
 
-	// Blog reads — specific before wildcard
 	api.GET("/blog",            blogHandler.GetAll)
 	api.GET("/blog/slug/:slug", blogHandler.GetBySlug)
 	api.GET("/blog/:id",        blogHandler.GetByID)
 
-	// Service reads
 	api.GET("/services",     serviceHandler.GetAll)
 	api.GET("/services/:id", serviceHandler.GetByID)
 
@@ -85,21 +81,31 @@ func SetupRouter(
 		p.POST("/upload/image",   uploadHandler.UploadImage)
 		p.DELETE("/upload/image", uploadHandler.DeleteImage)
 
-		// Partner: own services dashboard
 		p.GET("/services/mine", serviceHandler.GetMine)
+
+		// Orders
+		orders := p.Group("/orders")
+		{
+			orders.POST("",    orderHandler.Create)
+			orders.GET("/me",  orderHandler.GetMyOrders)
+			orders.GET("/:id", orderHandler.GetByID)
+		}
+
+		// Payment — own
+		p.GET("/payments/:id", paymentHandler.GetByID)
 	}
 
-	// ── writer+ — blog writes ─────────────────────────────────
+	// ── writer+ ───────────────────────────────────────────────
 	blogs := p.Group("/blogs")
 	blogs.Use(middleware.RoleMiddleware(entity.RoleWriter))
 	{
-		blogs.POST("",      blogHandler.Create)
-		blogs.PUT("/:id",   blogHandler.Update)
-		blogs.PATCH("/:id", blogHandler.Patch)
+		blogs.POST("",       blogHandler.Create)
+		blogs.PUT("/:id",    blogHandler.Update)
+		blogs.PATCH("/:id",  blogHandler.Patch)
 		blogs.DELETE("/:id", blogHandler.Delete)
 	}
 
-	// ── partner+ — service writes ─────────────────────────────
+	// ── partner+ ──────────────────────────────────────────────
 	myServices := p.Group("/services")
 	myServices.Use(middleware.RoleMiddleware(entity.RolePartner))
 	{
@@ -110,7 +116,7 @@ func SetupRouter(
 		myServices.POST("/:id/pause", serviceHandler.Pause)
 	}
 
-	// ── admin+ — user management ──────────────────────────────
+	// ── admin+ ────────────────────────────────────────────────
 	adminUsers := p.Group("/users")
 	adminUsers.Use(middleware.RoleMiddleware(entity.RoleAdmin))
 	{
@@ -121,14 +127,28 @@ func SetupRouter(
 		adminUsers.DELETE("/:id", userHandler.DeleteUser)
 	}
 
-	// ── admin+ — service approval ─────────────────────────────
 	adminServices := p.Group("/services")
 	adminServices.Use(middleware.RoleMiddleware(entity.RoleAdmin))
 	{
-		adminServices.GET("",              serviceHandler.GetAll) // admin sees all statuses
 		adminServices.POST("/:id/approve", serviceHandler.Approve)
 		adminServices.POST("/:id/reject",  serviceHandler.Reject)
 		adminServices.POST("/:id/pause",   serviceHandler.Pause)
+	}
+
+	adminOrders := p.Group("/orders")
+	adminOrders.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+	{
+		adminOrders.GET("",              orderHandler.GetAll)
+		adminOrders.PATCH("/:id/status", orderHandler.UpdateStatus)
+	}
+
+	adminPayments := p.Group("/payments")
+	adminPayments.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+	{
+		adminPayments.GET("",               paymentHandler.GetAll)
+		adminPayments.POST("/:id/complete", paymentHandler.MarkCompleted)
+		adminPayments.POST("/:id/fail",     paymentHandler.MarkFailed)
+		adminPayments.POST("/:id/refund",   paymentHandler.Refund)
 	}
 
 	return r
