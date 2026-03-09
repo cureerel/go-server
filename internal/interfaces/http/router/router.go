@@ -76,9 +76,9 @@ func SetupRouter(
 	}
 
 	// Public blog read
-	api.GET("/blogs", blogHandler.GetAll)
-	api.GET("/blogs/:id", blogHandler.GetByID)
-	api.GET("/blogs/slug/:slug", blogHandler.GetBySlug)
+	api.GET("/blog", blogHandler.GetAll)
+    api.GET("/blog/slug/:slug", blogHandler.GetBySlug) 
+    api.GET("/blog/:id", blogHandler.GetByID)  
 
 	// Public product read
 	api.GET("/products", productHandler.GetAll)
