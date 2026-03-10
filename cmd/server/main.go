@@ -1,3 +1,4 @@
+// cmd/server/main.go
 package main
 
 import (
@@ -23,8 +24,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
-
-// ── Config ────────────────────────────────────────────────────
 
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
@@ -57,20 +56,20 @@ func LoadConfig() (*Config, error) {
 		if v := os.Getenv(k); v != "" { return v }
 		return fb
 	}
-	cfg.Server.Port               = env("PORT",                  cfg.Server.Port)
-	cfg.Server.Env                = env("APP_ENV",               cfg.Server.Env)
-	cfg.Database.DSN              = env("DATABASE_URL",          cfg.Database.DSN)
-	cfg.JWT.AccessSecret          = env("JWT_ACCESS_SECRET",     cfg.JWT.AccessSecret)
-	cfg.JWT.RefreshSecret         = env("JWT_REFRESH_SECRET",    cfg.JWT.RefreshSecret)
-	cfg.Email.ResendAPIKey        = env("RESEND_API_KEY",        cfg.Email.ResendAPIKey)
-	cfg.Email.FromName            = env("EMAIL_FROM_NAME",       cfg.Email.FromName)
-	cfg.Email.FromAddress         = env("EMAIL_FROM_ADDRESS",    cfg.Email.FromAddress)
-	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME", cfg.Storage.CloudinaryCloudName)
-	cfg.Storage.CloudinaryAPIKey    = env("CLOUDINARY_API_KEY",    cfg.Storage.CloudinaryAPIKey)
-	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET", cfg.Storage.CloudinaryAPISecret)
+	cfg.Server.Port                 = env("PORT",                   cfg.Server.Port)
+	cfg.Server.Env                  = env("APP_ENV",                cfg.Server.Env)
+	cfg.Database.DSN                = env("DATABASE_URL",           cfg.Database.DSN)
+	cfg.JWT.AccessSecret            = env("JWT_ACCESS_SECRET",      cfg.JWT.AccessSecret)
+	cfg.JWT.RefreshSecret           = env("JWT_REFRESH_SECRET",     cfg.JWT.RefreshSecret)
+	cfg.Email.ResendAPIKey          = env("RESEND_API_KEY",         cfg.Email.ResendAPIKey)
+	cfg.Email.FromName              = env("EMAIL_FROM_NAME",        cfg.Email.FromName)
+	cfg.Email.FromAddress           = env("EMAIL_FROM_ADDRESS",     cfg.Email.FromAddress)
+	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME",  cfg.Storage.CloudinaryCloudName)
+	cfg.Storage.CloudinaryAPIKey    = env("CLOUDINARY_API_KEY",     cfg.Storage.CloudinaryAPIKey)
+	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET",  cfg.Storage.CloudinaryAPISecret)
 
-	if cfg.Server.Port == ""            { cfg.Server.Port = "8080" }
-	if cfg.Email.FromName == ""         { cfg.Email.FromName = "Cureerel" }
+	if cfg.Server.Port == "" { cfg.Server.Port = "8080" }
+	if cfg.Email.FromName == "" { cfg.Email.FromName = "Cureerel" }
 	if cfg.Platform.OTPExpiryMinutes == 0 { cfg.Platform.OTPExpiryMinutes = 15 }
 	if v := os.Getenv("OTP_EXPIRY_MINUTES"); v != "" {
 		fmt.Sscanf(v, "%d", &cfg.Platform.OTPExpiryMinutes)
@@ -85,8 +84,6 @@ func LoadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-// ── Main ──────────────────────────────────────────────────────
-
 func main() {
 	log := logger.New()
 
@@ -98,7 +95,6 @@ func main() {
 		os.Setenv("GIN_MODE", "release")
 	}
 
-	// ── Database ──────────────────────────────────────────────
 	dbClient, err := postgres.New(cfg.Database.DSN)
 	if err != nil {
 		log.Fatal("database failed", logger.Field{Key: "error", Value: err})
@@ -106,66 +102,71 @@ func main() {
 	defer dbClient.Close()
 	db := dbClient.GormDB().(*gorm.DB)
 
-	// ── Email ─────────────────────────────────────────────────
 	var emailClient emailinfra.Provider
 	if cfg.Email.ResendAPIKey != "" {
 		emailClient = resend.New(cfg.Email.ResendAPIKey)
 	} else {
-		log.Info("RESEND_API_KEY not set — noop email")
 		emailClient = &noopEmail{}
 	}
 
-	// ── Storage ───────────────────────────────────────────────
 	var storageClient storageinfra.Provider
 	if cfg.Storage.CloudinaryCloudName != "" {
 		storageClient = cloudinary.New(cfg.Storage.CloudinaryCloudName, cfg.Storage.CloudinaryAPIKey, cfg.Storage.CloudinaryAPISecret)
 	} else {
-		log.Info("Cloudinary not configured — noop storage")
 		storageClient = &noopStorage{}
 	}
 
 	// ── Repositories ──────────────────────────────────────────
-	userRepo    := repositories.NewUserRepository(db)
-	blogRepo    := repositories.NewBlogRepository(db)
-	authRepo    := repositories.NewAuthRepository(db)
-	sessionRepo := repositories.NewSessionRepository(db)
-	otpRepo     := repositories.NewOTPRepository(db)
-	serviceRepo := repositories.NewServiceRepository(db)
-	orderRepo   := repositories.NewOrderRepository(db)
-	paymentRepo := repositories.NewPaymentRepository(db)
+	userRepo        := repositories.NewUserRepository(db)
+	blogRepo        := repositories.NewBlogRepository(db)
+	authRepo        := repositories.NewAuthRepository(db)
+	sessionRepo     := repositories.NewSessionRepository(db)
+	otpRepo         := repositories.NewOTPRepository(db)
+	serviceRepo     := repositories.NewServiceRepository(db)
+	orderRepo       := repositories.NewOrderRepository(db)
+	paymentRepo     := repositories.NewPaymentRepository(db)
+	couponRepo      := repositories.NewCouponRepository(db)
+	couponUsageRepo := repositories.NewCouponUsageRepository(db)
+	payoutRepo      := repositories.NewPayoutRepository(db)
+	ticketRepo      := repositories.NewTicketRepository(db)
+	upgradeRepo     := repositories.NewUpgradeRequestRepository(db)
 
 	// ── Services ──────────────────────────────────────────────
-	authService    := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
+	authService      := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
 		AccessSecret: cfg.JWT.AccessSecret, RefreshSecret: cfg.JWT.RefreshSecret,
 	})
-	otpService     := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
-	userService    := service.NewUserService(userRepo)
-	blogService    := service.NewBlogService(blogRepo)
-	serviceService := service.NewServiceService(serviceRepo)
-	orderService   := service.NewOrderService(orderRepo, serviceRepo)
-	paymentService := service.NewPaymentService(paymentRepo, orderRepo)
+	otpService       := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
+	userService      := service.NewUserService(userRepo)
+	blogService      := service.NewBlogService(blogRepo)
+	serviceService   := service.NewServiceService(serviceRepo)
+	orderService     := service.NewOrderService(orderRepo, serviceRepo, couponRepo)
+	paymentService   := service.NewPaymentService(paymentRepo, orderRepo)
+	couponService    := service.NewCouponService(couponRepo, couponUsageRepo, payoutRepo)
+	payoutService    := service.NewPayoutService(payoutRepo)
+	ticketService    := service.NewTicketService(ticketRepo)
+	dashboardService := service.NewDashboardService(db)
+	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
 
 	// ── Handlers ──────────────────────────────────────────────
-	authHandler    := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
-	userHandler    := handler.NewUserHandler(userService)
-	blogHandler    := handler.NewBlogHandler(blogService)
-	serviceHandler := handler.NewServiceHandler(serviceService)
-	orderHandler   := handler.NewOrderHandler(orderService, paymentService)
-	paymentHandler := handler.NewPaymentHandler(paymentService)
-	uploadHandler  := handler.NewUploadHandler(storageClient)
+	authHandler       := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
+	userHandler       := handler.NewUserHandler(userService)
+	blogHandler       := handler.NewBlogHandler(blogService)
+	serviceHandler    := handler.NewServiceHandler(serviceService)
+	orderHandler      := handler.NewOrderHandler(orderService, paymentService)
+	paymentHandler    := handler.NewPaymentHandler(paymentService)
+	couponHandler     := handler.NewCouponHandler(couponService)
+	payoutHandler     := handler.NewPayoutHandler(payoutService)
+	ticketHandler     := handler.NewTicketHandler(ticketService)
+	dashboardHandler  := handler.NewDashboardHandler(dashboardService)
+	superadminHandler := handler.NewSuperAdminHandler(superAdminService)
+	uploadHandler     := handler.NewUploadHandler(storageClient)
 
-	// ── Router ────────────────────────────────────────────────
 	r := router.SetupRouter(
-		userHandler,
-		blogHandler,
-		authHandler,
-		authService,
-		serviceHandler,
-		orderHandler,
-		paymentHandler,
-		uploadHandler,
-		log,
-		cfg.CORS.AllowedOrigins,
+		userHandler, blogHandler, authHandler, authService,
+		serviceHandler, orderHandler, paymentHandler,
+		couponHandler, payoutHandler, ticketHandler,
+		dashboardHandler, superadminHandler, uploadHandler,
+		log, cfg.CORS.AllowedOrigins,
 	)
 
 	srv := &http.Server{
@@ -194,8 +195,6 @@ func main() {
 	}
 	log.Info("server exited")
 }
-
-// ── Noop providers ────────────────────────────────────────────
 
 type noopEmail struct{}
 func (n *noopEmail) Send(_ context.Context, e emailinfra.Email) error {

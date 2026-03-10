@@ -15,16 +15,21 @@ import (
 )
 
 func SetupRouter(
-	userHandler    *handler.UserHandler,
-	blogHandler    *handler.BlogHandler,
-	authHandler    *handler.AuthHandler,
-	authService    *service.AuthService,
-	serviceHandler *handler.ServiceHandler,
-	orderHandler   *handler.OrderHandler,
-	paymentHandler *handler.PaymentHandler,
-	uploadHandler  *handler.UploadHandler,
-	log            logger.Logger,
-	allowedOrigins []string,
+	userHandler      *handler.UserHandler,
+	blogHandler      *handler.BlogHandler,
+	authHandler      *handler.AuthHandler,
+	authService      *service.AuthService,
+	serviceHandler   *handler.ServiceHandler,
+	orderHandler     *handler.OrderHandler,
+	paymentHandler   *handler.PaymentHandler,
+	couponHandler    *handler.CouponHandler,
+	payoutHandler    *handler.PayoutHandler,
+	ticketHandler    *handler.TicketHandler,
+	dashboardHandler *handler.DashboardHandler,
+	superadminHandler *handler.SuperAdminHandler,
+	uploadHandler    *handler.UploadHandler,
+	log              logger.Logger,
+	allowedOrigins   []string,
 ) *gin.Engine {
 
 	r := gin.New()
@@ -64,14 +69,14 @@ func SetupRouter(
 		auth.POST("/refresh",               authHandler.Refresh)
 	}
 
-	api.GET("/blog",            blogHandler.GetAll)
-	api.GET("/blog/slug/:slug", blogHandler.GetBySlug)
-	api.GET("/blog/:id",        blogHandler.GetByID)
+	api.GET("/blog",             blogHandler.GetAll)
+	api.GET("/blog/slug/:slug",  blogHandler.GetBySlug)
+	api.GET("/blog/:id",         blogHandler.GetByID)
+	api.GET("/services",         serviceHandler.GetAll)
+	api.GET("/services/:id",     serviceHandler.GetByID)
+	api.GET("/coupons/validate", couponHandler.Validate)
 
-	api.GET("/services",     serviceHandler.GetAll)
-	api.GET("/services/:id", serviceHandler.GetByID)
-
-	// ── Protected ─────────────────────────────────────────────
+	// ── Protected (any authenticated user) ───────────────────
 	p := api.Group("")
 	p.Use(middleware.AuthMiddleware(authService))
 	{
@@ -83,7 +88,6 @@ func SetupRouter(
 
 		p.GET("/services/mine", serviceHandler.GetMine)
 
-		// Orders
 		orders := p.Group("/orders")
 		{
 			orders.POST("",    orderHandler.Create)
@@ -91,8 +95,31 @@ func SetupRouter(
 			orders.GET("/:id", orderHandler.GetByID)
 		}
 
-		// Payment — own
 		p.GET("/payments/:id", paymentHandler.GetByID)
+		p.GET("/payouts/me",   payoutHandler.GetMine)
+
+		tickets := p.Group("/tickets")
+		{
+			tickets.POST("",              ticketHandler.Create)
+			tickets.GET("/me",            ticketHandler.GetMine)
+			tickets.GET("/:id",           ticketHandler.GetByID)
+			tickets.POST("/:id/close",    ticketHandler.Close)
+			tickets.POST("/:id/messages", ticketHandler.SendMessage)
+			tickets.GET("/:id/messages",  ticketHandler.GetMessages)
+		}
+
+		dash := p.Group("/dashboard")
+		{
+			dash.GET("",       dashboardHandler.Get)
+			dash.GET("/user",  dashboardHandler.UserView)
+		}
+
+		// Self-service upgrade requests
+		upgrades := p.Group("/upgrade-requests")
+		{
+			upgrades.POST("",    superadminHandler.RequestUpgrade)
+			upgrades.GET("/me",  superadminHandler.GetMyUpgradeRequest)
+		}
 	}
 
 	// ── writer+ ───────────────────────────────────────────────
@@ -105,6 +132,10 @@ func SetupRouter(
 		blogs.DELETE("/:id", blogHandler.Delete)
 	}
 
+	writerDash := p.Group("/dashboard")
+	writerDash.Use(middleware.RoleMiddleware(entity.RoleWriter))
+	writerDash.GET("/writer", dashboardHandler.WriterView)
+
 	// ── partner+ ──────────────────────────────────────────────
 	myServices := p.Group("/services")
 	myServices.Use(middleware.RoleMiddleware(entity.RolePartner))
@@ -115,6 +146,30 @@ func SetupRouter(
 		myServices.POST("/:id/live",  serviceHandler.SetLive)
 		myServices.POST("/:id/pause", serviceHandler.Pause)
 	}
+
+	myCoupons := p.Group("/coupons")
+	myCoupons.Use(middleware.RoleMiddleware(entity.RolePartner))
+	{
+		myCoupons.POST("",    couponHandler.Create)
+		myCoupons.GET("/:id", couponHandler.GetByID)
+	}
+
+	partnerDash := p.Group("/dashboard")
+	partnerDash.Use(middleware.RoleMiddleware(entity.RolePartner))
+	partnerDash.GET("/partner", dashboardHandler.PartnerView)
+
+	// ── worker+ ───────────────────────────────────────────────
+	workerTickets := p.Group("/tickets")
+	workerTickets.Use(middleware.RoleMiddleware(entity.RoleWorker))
+	{
+		workerTickets.GET("",              ticketHandler.GetAll)
+		workerTickets.POST("/:id/assign",  ticketHandler.Assign)
+		workerTickets.POST("/:id/resolve", ticketHandler.Resolve)
+	}
+
+	workerDash := p.Group("/dashboard")
+	workerDash.Use(middleware.RoleMiddleware(entity.RoleWorker))
+	workerDash.GET("/worker", dashboardHandler.WorkerView)
 
 	// ── admin+ ────────────────────────────────────────────────
 	adminUsers := p.Group("/users")
@@ -148,6 +203,35 @@ func SetupRouter(
 		adminPayments.POST("/:id/complete", paymentHandler.MarkCompleted)
 		adminPayments.POST("/:id/fail",     paymentHandler.MarkFailed)
 		adminPayments.POST("/:id/refund",   paymentHandler.Refund)
+	}
+
+	adminCoupons := p.Group("/coupons")
+	adminCoupons.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+	{
+		adminCoupons.GET("",              couponHandler.GetAll)
+		adminCoupons.POST("/:id/approve", couponHandler.Approve)
+		adminCoupons.POST("/:id/reject",  couponHandler.Reject)
+	}
+
+	adminPayouts := p.Group("/payouts")
+	adminPayouts.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+	{
+		adminPayouts.GET("",          payoutHandler.GetAll)
+		adminPayouts.POST("/:id/pay", payoutHandler.MarkPaid)
+	}
+
+	adminDash := p.Group("/dashboard")
+	adminDash.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+	adminDash.GET("/admin", dashboardHandler.AdminView)
+
+	// ── superadmin only ───────────────────────────────────────
+	sa := p.Group("/superadmin")
+	sa.Use(middleware.RoleMiddleware(entity.RoleSuperAdmin))
+	{
+		sa.GET("/stats",                    superadminHandler.Stats)
+		sa.PATCH("/users/:id/role",         superadminHandler.SetRole)
+		sa.GET("/upgrades",                 superadminHandler.GetPendingUpgrades)
+		sa.POST("/upgrades/:id/review",     superadminHandler.ReviewUpgrade)
 	}
 
 	return r
