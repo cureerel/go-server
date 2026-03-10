@@ -132,7 +132,6 @@ func SetupRouter(
 	{
 		adminServices.POST("/:id/approve", serviceHandler.Approve)
 		adminServices.POST("/:id/reject",  serviceHandler.Reject)
-		adminServices.POST("/:id/pause",   serviceHandler.Pause)
 	}
 
 	adminOrders := p.Group("/orders")

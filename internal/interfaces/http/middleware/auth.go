@@ -11,10 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware validates the JWT access token from the Authorization header
-// and injects user_id, email, role into the Gin context.
-//
-// Every protected route group must use this middleware first.
 func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")

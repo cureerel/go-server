@@ -24,11 +24,7 @@ func NewAuthHandler(authService *service.AuthService, otpService *service.OTPSer
 	}
 }
 
-// ── Registration ──────────────────────────────────────────────
 
-// RegisterInit godoc
-// POST /api/auth/register/init
-// Sends a 6-digit OTP to the email. First step of registration.
 func (h *AuthHandler) RegisterInit(c *gin.Context) {
 	var req dto.RegisterInitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

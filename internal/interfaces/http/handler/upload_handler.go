@@ -1,229 +1,142 @@
-// internal/application/service/blog_service.go
-package service
+// internal/interfaces/http/handler/upload_handler.go
+package handler
 
 import (
-	"context"
-	"crypto/sha256"
 	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
+	"strings"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
+	storageinfra "github.com/cureerel/gotemplate/internal/infrastructure/storage"
+	"github.com/cureerel/gotemplate/internal/interfaces/dto"
 	"github.com/cureerel/gotemplate/pkg/apperror"
-	"github.com/cureerel/gotemplate/pkg/utils"
+	"github.com/gin-gonic/gin"
 )
 
-type BlogService struct {
-	blogRepo repository.BlogRepository
+const (
+	maxUploadBytes  = 5 * 1024 * 1024
+	uploadFormField = "image"
+)
+
+var allowedMIMEs = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/webp": true,
+	"image/gif":  true,
 }
 
-func NewBlogService(blogRepo repository.BlogRepository) *BlogService {
-	return &BlogService{blogRepo: blogRepo}
+type UploadHandler struct {
+	storage storageinfra.Provider
 }
 
-// ── Input types ───────────────────────────────────────────────
-
-type CreateBlogInput struct {
-	Title         string
-	Content       string
-	AuthorID      uint
-	Tags          string
-	CoverImageURL string
-	CoverImageKey string
+func NewUploadHandler(storage storageinfra.Provider) *UploadHandler {
+	return &UploadHandler{storage: storage}
 }
 
-type UpdateBlogInput struct {
-	ID            uint
-	CallerID      uint   // who is making the request — enforced below
-	CallerRole    string // admin+ may update any blog
-	Title         *string
-	Content       *string
-	Status        *string
-	Tags          *string
-	CoverImageURL *string
-	CoverImageKey *string
-}
-
-// ── CRUD ──────────────────────────────────────────────────────
-
-func (s *BlogService) Create(ctx context.Context, in CreateBlogInput) (*entity.Blog, error) {
-	slug := utils.GenerateUniqueSlug(in.Title, func(candidate string) bool {
-		exists, _ := s.blogRepo.SlugExists(ctx, candidate)
-		return exists
-	})
-	blog := &entity.Blog{
-		Title:         in.Title,
-		Slug:          slug,
-		Content:       in.Content,
-		AuthorID:      in.AuthorID,
-		Tags:          in.Tags,
-		Status:        "draft",
-		CoverImageURL: in.CoverImageURL,
-		CoverImageKey: in.CoverImageKey,
+func (h *UploadHandler) UploadImage(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(maxUploadBytes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large — max 5 MB"})
+		return
 	}
-	if err := s.blogRepo.Create(ctx, blog); err != nil {
-		return nil, apperror.NewInternal(err, "failed to create blog")
-	}
-	return blog, nil
-}
 
-func (s *BlogService) GetByID(ctx context.Context, id uint) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetByID(ctx, id)
+	file, header, err := c.Request.FormFile(uploadFormField)
 	if err != nil {
-		return nil, apperror.NewInternal(err, "failed to fetch blog")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "field 'image' missing from form"})
+		return
 	}
-	if blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	return blog, nil
-}
+	defer file.Close()
 
-func (s *BlogService) GetBySlug(ctx context.Context, slug string) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetBySlug(ctx, slug)
+	if header.Size > maxUploadBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large — max 5 MB"})
+		return
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
 	if err != nil {
-		return nil, apperror.NewInternal(err, "failed to fetch blog")
+		respondErr(c, apperror.NewInternal(err, "failed to read upload"))
+		return
 	}
-	if blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	return blog, nil
-}
-
-// GetAll returns published blogs (public feed).
-func (s *BlogService) GetAll(ctx context.Context, page, limit int, search, tag string) ([]entity.Blog, int64, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-	return s.blogRepo.GetAll(ctx, repository.BlogFilter{
-		Page:   page,
-		Limit:  limit,
-		Status: "published",
-		Search: search,
-		Tags:   tag,
-	})
-}
-
-// GetMine returns all blogs by a specific author (any status — used on dashboard).
-func (s *BlogService) GetMine(ctx context.Context, authorID uint, page, limit int) ([]entity.Blog, int64, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 10
-	}
-	return s.blogRepo.GetByAuthor(ctx, authorID, repository.BlogFilter{
-		Page:  page,
-		Limit: limit,
-	})
-}
-
-// Update applies partial updates. Enforces ownership: only the author or an
-// admin+ can update. Returns the updated blog.
-func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetByID(ctx, in.ID)
-	if err != nil {
-		return nil, apperror.NewInternal(err, "failed to fetch blog")
-	}
-	if blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
+	if int64(len(data)) > maxUploadBytes {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large — max 5 MB"})
+		return
 	}
 
-	// Ownership check — author or admin+
-	caller := &entity.User{ID: in.CallerID, Role: in.CallerRole}
-	if blog.AuthorID != in.CallerID && !caller.HasRole(entity.RoleAdmin) {
-		return nil, apperror.NewForbidden("you don't own this blog")
-	}
-
-	if in.Title != nil && *in.Title != "" {
-		blog.Title = *in.Title
-		// Re-slug: skip current slug so updating title without changing it
-		// doesn't bump to -2.
-		currentSlug := blog.Slug
-		blog.Slug = utils.GenerateUniqueSlug(*in.Title, func(c string) bool {
-			if c == currentSlug {
-				return false
-			}
-			exists, _ := s.blogRepo.SlugExists(ctx, c)
-			return exists
+	mime := http.DetectContentType(data)
+	mime = strings.SplitN(mime, ";", 2)[0]
+	if !allowedMIMEs[mime] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "unsupported file type",
+			"allowed": "jpeg, png, webp, gif",
 		})
+		return
 	}
-	if in.Content != nil {
-		blog.Content = *in.Content
+
+	folder := c.DefaultQuery("folder", "general")
+	if !validFolder(folder) {
+		folder = "general"
 	}
-	if in.Status != nil {
-		if !validBlogStatus(*in.Status) {
-			return nil, apperror.NewBadRequest("invalid status — must be draft, published, or archived")
+
+	uid, _ := getUID(c)
+	key := fmt.Sprintf("%d-%s", uid, sanitiseFilename(header.Filename))
+
+	result, err := h.storage.Upload(c.Request.Context(), storageinfra.UploadInput{
+		Key:         key,
+		Body:        strings.NewReader(string(data)),
+		ContentType: mime,
+		Folder:      folder,
+	})
+	if err != nil {
+		respondErr(c, apperror.NewInternal(err, "upload failed"))
+		return
+	}
+
+	respondCreated(c, dto.UploadResponse{URL: result.URL, Key: result.Key})
+}
+
+func (h *UploadHandler) DeleteImage(c *gin.Context) {
+	var req dto.DeleteUploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	uid, _ := getUID(c)
+	if !hasRole(c, "admin") {
+		expectedPrefix := fmt.Sprintf("%d-", uid)
+		base := filepath.Base(req.Key)
+		if !strings.HasPrefix(base, expectedPrefix) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you don't own this file"})
+			return
 		}
-		blog.Status = *in.Status
-	}
-	if in.Tags != nil {
-		blog.Tags = *in.Tags
-	}
-	if in.CoverImageURL != nil {
-		blog.CoverImageURL = *in.CoverImageURL
-	}
-	if in.CoverImageKey != nil {
-		blog.CoverImageKey = *in.CoverImageKey
 	}
 
-	if err := s.blogRepo.Update(ctx, blog); err != nil {
-		return nil, apperror.NewInternal(err, "failed to update blog")
+	if err := h.storage.Delete(c.Request.Context(), req.Key); err != nil {
+		respondErr(c, apperror.NewInternal(err, "delete failed"))
+		return
 	}
-	return blog, nil
+
+	c.JSON(http.StatusOK, gin.H{"message": "file deleted"})
 }
 
-// Delete removes a blog. Enforces ownership: author or admin+.
-func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole string) error {
-	blog, err := s.blogRepo.GetByID(ctx, id)
-	if err != nil {
-		return apperror.NewInternal(err, "failed to fetch blog")
-	}
-	if blog == nil {
-		return apperror.NewNotFound("blog not found")
-	}
-
-	caller := &entity.User{ID: callerID, Role: callerRole}
-	if blog.AuthorID != callerID && !caller.HasRole(entity.RoleAdmin) {
-		return apperror.NewForbidden("you don't own this blog")
-	}
-
-	return s.blogRepo.Delete(ctx, id)
-}
-
-// ── Analytics ─────────────────────────────────────────────────
-
-// RecordView hashes IP + UserAgent (no PII stored) and records a unique view
-// per (blog, visitor, day). Increments the denormalised views_total counter
-// only on the first view of the day for that visitor.
-// Called in a goroutine — all errors are swallowed at the call site.
-func (s *BlogService) RecordView(ctx context.Context, blogID uint, ip, ua string) error {
-	raw := fmt.Sprintf("%s|%s", ip, ua)
-	h := sha256.Sum256([]byte(raw))
-	hash := fmt.Sprintf("%x", h)
-	_, err := s.blogRepo.RecordView(ctx, blogID, hash)
-	return err
-}
-
-// GetStats returns total view count for a blog.
-func (s *BlogService) GetStats(ctx context.Context, blogID uint) (int64, error) {
-	blog, err := s.blogRepo.GetByID(ctx, blogID)
-	if err != nil {
-		return 0, apperror.NewInternal(err, "failed to fetch blog")
-	}
-	if blog == nil {
-		return 0, apperror.NewNotFound("blog not found")
-	}
-	return blog.ViewsTotal, nil
-}
-
-// ── helpers ───────────────────────────────────────────────────
-
-func validBlogStatus(s string) bool {
-	switch s {
-	case "draft", "published", "archived":
+func validFolder(f string) bool {
+	switch f {
+	case "blogs", "services", "avatars", "general":
 		return true
 	}
 	return false
+}
+
+func sanitiseFilename(name string) string {
+	name = filepath.Base(name)
+	var b strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '.' || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }
