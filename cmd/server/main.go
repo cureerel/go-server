@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cureerel/gotemplate/internal/application/service"
+	"github.com/joho/godotenv"
 	emailinfra "github.com/cureerel/gotemplate/internal/infrastructure/email"
 	"github.com/cureerel/gotemplate/internal/infrastructure/email/resend"
 	"github.com/cureerel/gotemplate/internal/infrastructure/postgres"
@@ -44,33 +45,68 @@ type StorageConfig  struct { CloudinaryCloudName string `yaml:"cloudinary_cloud_
 type PlatformConfig struct { OTPExpiryMinutes int `yaml:"otp_expiry_minutes"` }
 
 func LoadConfig() (*Config, error) {
+	// Load .env file if it exists
+	_ = godotenv.Load(".env")
+
 	var cfg Config
+
+	// Load YAML config
 	for _, path := range []string{"configs/config.yaml", "/app/configs/config.yaml"} {
 		if _, err := os.Stat(path); err == nil {
-			data, _ := os.ReadFile(path)
-			_ = yaml.Unmarshal(data, &cfg)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read config file: %w", err)
+			}
+			if err := yaml.Unmarshal(data, &cfg); err != nil {
+				return nil, fmt.Errorf("failed to parse config file: %w", err)
+			}
 			break
 		}
 	}
+
+	// Helper to override with env
 	env := func(k, fb string) string {
-		if v := os.Getenv(k); v != "" { return v }
+		if v := os.Getenv(k); v != "" {
+			fmt.Printf("[config] %s loaded from ENV\n", k)
+			return v
+		}
+		fmt.Printf("[config] %s loaded from YAML or default\n", k)
 		return fb
 	}
-	cfg.Server.Port                 = env("PORT",                   cfg.Server.Port)
-	cfg.Server.Env                  = env("APP_ENV",                cfg.Server.Env)
-	cfg.Database.DSN                = env("DATABASE_URL",           cfg.Database.DSN)
-	cfg.JWT.AccessSecret            = env("JWT_ACCESS_SECRET",      cfg.JWT.AccessSecret)
-	cfg.JWT.RefreshSecret           = env("JWT_REFRESH_SECRET",     cfg.JWT.RefreshSecret)
-	cfg.Email.ResendAPIKey          = env("RESEND_API_KEY",         cfg.Email.ResendAPIKey)
-	cfg.Email.FromName              = env("EMAIL_FROM_NAME",        cfg.Email.FromName)
-	cfg.Email.FromAddress           = env("EMAIL_FROM_ADDRESS",     cfg.Email.FromAddress)
-	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME",  cfg.Storage.CloudinaryCloudName)
-	cfg.Storage.CloudinaryAPIKey    = env("CLOUDINARY_API_KEY",     cfg.Storage.CloudinaryAPIKey)
-	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET",  cfg.Storage.CloudinaryAPISecret)
 
-	if cfg.Server.Port == "" { cfg.Server.Port = "8080" }
-	if cfg.Email.FromName == "" { cfg.Email.FromName = "Cureerel" }
-	if cfg.Platform.OTPExpiryMinutes == 0 { cfg.Platform.OTPExpiryMinutes = 15 }
+	// Server
+	cfg.Server.Port = env("PORT", cfg.Server.Port)
+	cfg.Server.Env = env("APP_ENV", cfg.Server.Env)
+
+	// Database
+	cfg.Database.DSN = env("DATABASE_URL", cfg.Database.DSN)
+
+	// JWT
+	cfg.JWT.AccessSecret = env("JWT_ACCESS_SECRET", cfg.JWT.AccessSecret)
+	cfg.JWT.RefreshSecret = env("JWT_REFRESH_SECRET", cfg.JWT.RefreshSecret)
+
+	// Email
+	cfg.Email.ResendAPIKey = env("RESEND_API_KEY", cfg.Email.ResendAPIKey)
+	cfg.Email.FromName = env("EMAIL_FROM_NAME", cfg.Email.FromName)
+	cfg.Email.FromAddress = env("EMAIL_FROM_ADDRESS", cfg.Email.FromAddress)
+
+	// Cloudinary / Storage
+	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME", cfg.Storage.CloudinaryCloudName)
+	cfg.Storage.CloudinaryAPIKey = env("CLOUDINARY_API_KEY", cfg.Storage.CloudinaryAPIKey)
+	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET", cfg.Storage.CloudinaryAPISecret)
+
+	// Defaults
+	if cfg.Server.Port == "" {
+		cfg.Server.Port = "8080"
+	}
+	if cfg.Email.FromName == "" {
+		cfg.Email.FromName = "Cureerel"
+	}
+	if cfg.Platform.OTPExpiryMinutes == 0 {
+		cfg.Platform.OTPExpiryMinutes = 15
+	}
+
+	// Override OTP expiry and CORS from env
 	if v := os.Getenv("OTP_EXPIRY_MINUTES"); v != "" {
 		fmt.Sscanf(v, "%d", &cfg.Platform.OTPExpiryMinutes)
 	}
@@ -81,6 +117,7 @@ func LoadConfig() (*Config, error) {
 			}
 		}
 	}
+
 	return &cfg, nil
 }
 
@@ -110,11 +147,18 @@ func main() {
 	}
 
 	var storageClient storageinfra.Provider
-	if cfg.Storage.CloudinaryCloudName != "" {
-		storageClient = cloudinary.New(cfg.Storage.CloudinaryCloudName, cfg.Storage.CloudinaryAPIKey, cfg.Storage.CloudinaryAPISecret)
-	} else {
-		storageClient = &noopStorage{}
+if cfg.Storage.CloudinaryCloudName != "" {
+	storageClient, err = cloudinary.New(
+		cfg.Storage.CloudinaryCloudName,
+		cfg.Storage.CloudinaryAPIKey,
+		cfg.Storage.CloudinaryAPISecret,
+	)
+	if err != nil {
+		log.Fatal("cloudinary init failed", logger.Field{Key: "error", Value: err})
 	}
+} else {
+	storageClient = &noopStorage{}
+}
 
 	// ── Repositories ──────────────────────────────────────────
 	userRepo        := repositories.NewUserRepository(db)

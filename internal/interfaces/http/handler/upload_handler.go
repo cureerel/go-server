@@ -35,6 +35,13 @@ func NewUploadHandler(storage storageinfra.Provider) *UploadHandler {
 }
 
 func (h *UploadHandler) UploadImage(c *gin.Context) {
+	uid, ok := getUID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	fmt.Printf("[UploadImage] user_id=%d\n", uid)
+
 	if err := c.Request.ParseMultipartForm(maxUploadBytes); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large — max 5 MB"})
 		return
@@ -52,18 +59,16 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 		return
 	}
 
-	data, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
-	if err != nil {
-		respondErr(c, apperror.NewInternal(err, "failed to read upload"))
-		return
-	}
-	if int64(len(data)) > maxUploadBytes {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large — max 5 MB"})
-		return
+	fileReader := io.LimitReader(file, maxUploadBytes+1)
+
+	mime := header.Header.Get("Content-Type")
+	if mime == "" {
+		buf := make([]byte, 512)
+		_, _ = fileReader.Read(buf)
+		mime = http.DetectContentType(buf)
+		fileReader = io.MultiReader(strings.NewReader(string(buf)), fileReader)
 	}
 
-	mime := http.DetectContentType(data)
-	mime = strings.SplitN(mime, ";", 2)[0]
 	if !allowedMIMEs[mime] {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "unsupported file type",
@@ -73,16 +78,15 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 
 	folder := c.DefaultQuery("folder", "general")
-	if !validFolder(folder) {
+	if folder != "blogs" && folder != "services" && folder != "avatars" && folder != "general" && folder != "blog_cover" {
 		folder = "general"
 	}
 
-	uid, _ := getUID(c)
 	key := fmt.Sprintf("%d-%s", uid, sanitiseFilename(header.Filename))
 
 	result, err := h.storage.Upload(c.Request.Context(), storageinfra.UploadInput{
 		Key:         key,
-		Body:        strings.NewReader(string(data)),
+		Body:        fileReader,
 		ContentType: mime,
 		Folder:      folder,
 	})
@@ -91,6 +95,7 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("[UploadImage] result — URL: %s | Key: %s\n", result.URL, result.Key)
 	respondCreated(c, dto.UploadResponse{URL: result.URL, Key: result.Key})
 }
 
@@ -119,14 +124,6 @@ func (h *UploadHandler) DeleteImage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "file deleted"})
 }
 
-func validFolder(f string) bool {
-	switch f {
-	case "blogs", "services", "avatars", "general":
-		return true
-	}
-	return false
-}
-
 func sanitiseFilename(name string) string {
 	name = filepath.Base(name)
 	var b strings.Builder
@@ -139,4 +136,12 @@ func sanitiseFilename(name string) string {
 		}
 	}
 	return b.String()
+}
+
+func validFolder(f string) bool {
+	switch f {
+	case "blogs", "services", "avatars", "general":
+		return true
+	}
+	return false
 }

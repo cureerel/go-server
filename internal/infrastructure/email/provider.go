@@ -5,11 +5,11 @@ import "context"
 
 // Email is a single email message.
 type Email struct {
-	From    string   // e.g. "Cureerel <no-reply@cureerel.com>"
-	To      []string // recipients
+	From    string   
+	To      []string
 	Subject string
-	HTML    string // HTML body
-	Text    string // plain-text fallback (optional)
+	HTML    string 
+	Text    string 
 }
 
 // Provider is the single interface every email adapter must satisfy.

@@ -33,6 +33,8 @@ func (h *BlogHandler) Create(c *gin.Context) {
 	blog, err := h.svc.Create(c.Request.Context(), service.CreateBlogInput{
 		Title:         req.Title,
 		Content:       req.Content,
+		Excerpt:       req.Excerpt,        // ← was missing
+		Status:        req.Status,         // ← was missing
 		AuthorID:      uid,
 		Tags:          req.Tags,
 		CoverImageURL: req.CoverImageURL,
@@ -45,7 +47,7 @@ func (h *BlogHandler) Create(c *gin.Context) {
 	respondCreated(c, toBlogResponse(blog))
 }
 
-// GET /api/blog — public, paginated, searchable
+// GET /api/blogs — public, paginated, searchable
 func (h *BlogHandler) GetAll(c *gin.Context) {
 	page, limit := paginate(c)
 	search := c.Query("search")
@@ -64,7 +66,7 @@ func (h *BlogHandler) GetAll(c *gin.Context) {
 	})
 }
 
-// GET /api/blog/:id — public
+// GET /api/blogs/:id — public
 func (h *BlogHandler) GetByID(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -76,12 +78,11 @@ func (h *BlogHandler) GetByID(c *gin.Context) {
 		respondErr(c, err)
 		return
 	}
-	// Fire-and-forget — don't block the response on analytics write.
 	go func() { _ = h.svc.RecordView(c.Request.Context(), id, c.ClientIP(), c.Request.UserAgent()) }()
 	respond(c, toBlogResponse(blog))
 }
 
-// GET /api/blog/slug/:slug — public
+// GET /api/blogs/slug/:slug — public
 func (h *BlogHandler) GetBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	blog, err := h.svc.GetBySlug(c.Request.Context(), slug)
@@ -132,12 +133,13 @@ func (h *BlogHandler) Update(c *gin.Context) {
 		ID:            id,
 		CallerID:      uid,
 		CallerRole:    getRole(c),
-		Title:         req.Title,
-		Content:       req.Content,
-		Status:        req.Status,
-		Tags:          req.Tags,
-		CoverImageURL: req.CoverImageURL,
-		CoverImageKey: req.CoverImageKey,
+		Title:         &req.Title,
+		Content:       &req.Content,
+		Excerpt:       &req.Excerpt,        // ← was missing
+		Status:        &req.Status,
+		Tags:          &req.Tags,
+		CoverImageURL: &req.CoverImageURL,
+		CoverImageKey: &req.CoverImageKey,
 	})
 	if err != nil {
 		respondErr(c, err)
@@ -171,7 +173,6 @@ func (h *BlogHandler) GetStats(c *gin.Context) {
 		respondErr(c, err)
 		return
 	}
-	// Must be author or admin+
 	uid, _ := getUID(c)
 	blog, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
@@ -199,8 +200,9 @@ func toBlogResponse(b *entity.Blog) dto.BlogResponse {
 		Title:         b.Title,
 		Slug:          b.Slug,
 		Content:       b.Content,
+		Excerpt:       b.Excerpt,           // ← was missing
 		AuthorID:      b.AuthorID,
-		Status:        b.Status,
+		Status:        string(b.Status),
 		Tags:          b.Tags,
 		CoverImageURL: b.CoverImageURL,
 		ViewsTotal:    b.ViewsTotal,

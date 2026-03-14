@@ -1,32 +1,32 @@
 // internal/interfaces/dto/blog_dto.go
 package dto
 
-// ── Requests ──────────────────────────────────────────────────
-
 type CreateBlogRequest struct {
-	Title         string `json:"title"          binding:"required,min=2,max=200"`
+	Title         string `json:"title"          binding:"required,min=3"`
 	Content       string `json:"content"        binding:"required"`
+	Excerpt       string `json:"excerpt"`        
 	Tags          string `json:"tags"`
 	CoverImageURL string `json:"cover_image_url"`
 	CoverImageKey string `json:"cover_image_key"`
+	Status        string `json:"status"`         
 }
 
 type UpdateBlogRequest struct {
-	Title         *string `json:"title"`
-	Content       *string `json:"content"`
-	Status        *string `json:"status"`
-	Tags          *string `json:"tags"`
-	CoverImageURL *string `json:"cover_image_url"`
-	CoverImageKey *string `json:"cover_image_key"`
+	Title         string `json:"title"`
+	Content       string `json:"content"`
+	Excerpt       string `json:"excerpt"`
+	Tags          string `json:"tags"`
+	CoverImageURL string `json:"cover_image_url"`
+	CoverImageKey string `json:"cover_image_key"`
+	Status        string `json:"status"`
 }
-
-// ── Responses ─────────────────────────────────────────────────
 
 type BlogResponse struct {
 	ID            uint   `json:"id"`
 	Title         string `json:"title"`
 	Slug          string `json:"slug"`
 	Content       string `json:"content"`
+	Excerpt       string `json:"excerpt"`
 	AuthorID      uint   `json:"author_id"`
 	Status        string `json:"status"`
 	Tags          string `json:"tags"`
@@ -46,15 +46,4 @@ type BlogListResponse struct {
 type BlogStatsResponse struct {
 	BlogID     uint  `json:"blog_id"`
 	ViewsTotal int64 `json:"views_total"`
-}
-
-// ── Upload ────────────────────────────────────────────────────
-
-type UploadResponse struct {
-	URL string `json:"url"`
-	Key string `json:"key"`
-}
-
-type DeleteUploadRequest struct {
-	Key string `json:"key" binding:"required"`
 }

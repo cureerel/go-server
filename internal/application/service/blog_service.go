@@ -25,6 +25,8 @@ func NewBlogService(blogRepo repository.BlogRepository) *BlogService {
 type CreateBlogInput struct {
 	Title         string
 	Content       string
+	Excerpt       string // ← added
+	Status        string // ← added
 	AuthorID      uint
 	Tags          string
 	CoverImageURL string
@@ -33,10 +35,11 @@ type CreateBlogInput struct {
 
 type UpdateBlogInput struct {
 	ID            uint
-	CallerID      uint   // who is making the request — enforced below
-	CallerRole    string // admin+ may update any blog
+	CallerID      uint
+	CallerRole    string
 	Title         *string
 	Content       *string
+	Excerpt       *string // ← added
 	Status        *string
 	Tags          *string
 	CoverImageURL *string
@@ -50,13 +53,23 @@ func (s *BlogService) Create(ctx context.Context, in CreateBlogInput) (*entity.B
 		exists, _ := s.blogRepo.SlugExists(ctx, candidate)
 		return exists
 	})
+
+	// Resolve status — default to draft if not provided or invalid
+	status := entity.BlogDraft
+	if in.Status == string(entity.BlogPublished) {
+		status = entity.BlogPublished
+	} else if in.Status == string(entity.BlogArchived) {
+		status = entity.BlogArchived
+	}
+
 	blog := &entity.Blog{
 		Title:         in.Title,
 		Slug:          slug,
 		Content:       in.Content,
+		Excerpt:       in.Excerpt,
 		AuthorID:      in.AuthorID,
 		Tags:          in.Tags,
-		Status:        "draft",
+		Status:        status,
 		CoverImageURL: in.CoverImageURL,
 		CoverImageKey: in.CoverImageKey,
 	}
@@ -88,7 +101,6 @@ func (s *BlogService) GetBySlug(ctx context.Context, slug string) (*entity.Blog,
 	return blog, nil
 }
 
-// GetAll returns published blogs (public feed).
 func (s *BlogService) GetAll(ctx context.Context, page, limit int, search, tag string) ([]entity.Blog, int64, error) {
 	if page < 1 {
 		page = 1
@@ -105,7 +117,6 @@ func (s *BlogService) GetAll(ctx context.Context, page, limit int, search, tag s
 	})
 }
 
-// GetMine returns all blogs by a specific author (any status — used on dashboard).
 func (s *BlogService) GetMine(ctx context.Context, authorID uint, page, limit int) ([]entity.Blog, int64, error) {
 	if page < 1 {
 		page = 1
@@ -119,8 +130,6 @@ func (s *BlogService) GetMine(ctx context.Context, authorID uint, page, limit in
 	})
 }
 
-// Update applies partial updates. Enforces ownership: only the author or an
-// admin+ can update. Returns the updated blog.
 func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.Blog, error) {
 	blog, err := s.blogRepo.GetByID(ctx, in.ID)
 	if err != nil {
@@ -130,7 +139,6 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 		return nil, apperror.NewNotFound("blog not found")
 	}
 
-	// Ownership check — author or admin+
 	caller := &entity.User{ID: in.CallerID, Role: in.CallerRole}
 	if blog.AuthorID != in.CallerID && !caller.HasRole(entity.RoleAdmin) {
 		return nil, apperror.NewForbidden("you don't own this blog")
@@ -138,8 +146,6 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 
 	if in.Title != nil && *in.Title != "" {
 		blog.Title = *in.Title
-		// Re-slug: skip current slug so updating title without changing it
-		// doesn't bump to -2.
 		currentSlug := blog.Slug
 		blog.Slug = utils.GenerateUniqueSlug(*in.Title, func(c string) bool {
 			if c == currentSlug {
@@ -152,11 +158,14 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 	if in.Content != nil {
 		blog.Content = *in.Content
 	}
+	if in.Excerpt != nil {
+		blog.Excerpt = *in.Excerpt
+	}
 	if in.Status != nil {
 		if !validBlogStatus(*in.Status) {
 			return nil, apperror.NewBadRequest("invalid status — must be draft, published, or archived")
 		}
-		blog.Status = *in.Status
+		blog.Status = entity.BlogStatus(*in.Status)
 	}
 	if in.Tags != nil {
 		blog.Tags = *in.Tags
@@ -174,7 +183,6 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 	return blog, nil
 }
 
-// Delete removes a blog. Enforces ownership: author or admin+.
 func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole string) error {
 	blog, err := s.blogRepo.GetByID(ctx, id)
 	if err != nil {
@@ -194,10 +202,6 @@ func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole 
 
 // ── Analytics ─────────────────────────────────────────────────
 
-// RecordView hashes IP + UserAgent (no PII stored) and records a unique view
-// per (blog, visitor, day). Increments the denormalised views_total counter
-// only on the first view of the day for that visitor.
-// Called in a goroutine — all errors are swallowed at the call site.
 func (s *BlogService) RecordView(ctx context.Context, blogID uint, ip, ua string) error {
 	raw := fmt.Sprintf("%s|%s", ip, ua)
 	h := sha256.Sum256([]byte(raw))
@@ -206,7 +210,6 @@ func (s *BlogService) RecordView(ctx context.Context, blogID uint, ip, ua string
 	return err
 }
 
-// GetStats returns total view count for a blog.
 func (s *BlogService) GetStats(ctx context.Context, blogID uint) (int64, error) {
 	blog, err := s.blogRepo.GetByID(ctx, blogID)
 	if err != nil {

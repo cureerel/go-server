@@ -11,7 +11,7 @@ type BlogFilter struct {
 	Page     int
 	Limit    int
 	Search   string
-	Tags     string // partial match — ILIKE %tag%
+	Tags     string 
 	Status   string
 	SortBy   string
 	OrderDir string

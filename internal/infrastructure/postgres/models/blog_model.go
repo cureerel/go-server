@@ -3,25 +3,27 @@ package models
 
 import (
 	"time"
-	"gorm.io/gorm"
+
 	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"gorm.io/gorm"
 )
 
 type Blog struct {
 	ID            uint           `gorm:"primaryKey"`
-	Title         string         `gorm:"not null;size:200"`
+	Title         string         `gorm:"not null;size:500"`
 	Slug          string         `gorm:"uniqueIndex;not null;size:200"`
 	Content       string         `gorm:"type:text"`
+	Excerpt       string         `gorm:"type:text"` 
 	AuthorID      uint           `gorm:"not null;index"`
-	Status        string         `gorm:"default:'draft';size:20"`
-	Tags          string         `gorm:"size:500"`
+	Status        string         `gorm:"default:'draft';size:20;index"`
+	Tags          string         `gorm:"type:text"`
 	CoverImageURL string         `gorm:"column:cover_image_url;type:text"`
 	CoverImageKey string         `gorm:"column:cover_image_key;type:text"`
 	ViewsTotal    int64          `gorm:"column:views_total;default:0"`
-	CreatedAt     time.Time      `gorm:"column:created_at"`
-	UpdatedAt     time.Time      `gorm:"column:updated_at"`
+	PublishedAt   *time.Time     `gorm:"column:published_at"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 	DeletedAt     gorm.DeletedAt `gorm:"index"`
-	Author        User           `gorm:"foreignKey:AuthorID"`
 }
 
 func (Blog) TableName() string { return "blogs" }
@@ -32,12 +34,14 @@ func (m *Blog) ToDomain() *entity.Blog {
 		Title:         m.Title,
 		Slug:          m.Slug,
 		Content:       m.Content,
+		Excerpt:       m.Excerpt,
 		AuthorID:      m.AuthorID,
-		Status:        m.Status,
+		Status:        entity.BlogStatus(m.Status),
 		Tags:          m.Tags,
 		CoverImageURL: m.CoverImageURL,
 		CoverImageKey: m.CoverImageKey,
 		ViewsTotal:    m.ViewsTotal,
+		PublishedAt:   m.PublishedAt,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}
@@ -49,12 +53,14 @@ func BlogFromDomain(e *entity.Blog) *Blog {
 		Title:         e.Title,
 		Slug:          e.Slug,
 		Content:       e.Content,
+		Excerpt:       e.Excerpt,
 		AuthorID:      e.AuthorID,
-		Status:        e.Status,
+		Status:        string(e.Status),
 		Tags:          e.Tags,
 		CoverImageURL: e.CoverImageURL,
 		CoverImageKey: e.CoverImageKey,
 		ViewsTotal:    e.ViewsTotal,
+		PublishedAt:   e.PublishedAt,
 		CreatedAt:     e.CreatedAt,
 		UpdatedAt:     e.UpdatedAt,
 	}

@@ -15,6 +15,7 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
+			fmt.Println("[AuthMiddleware] missing Authorization header")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "missing authorization header",
 			})
@@ -23,6 +24,7 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 
 		parts := strings.SplitN(header, " ", 2)
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			fmt.Println("[AuthMiddleware] invalid Authorization header format:", header)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "authorization header must be: Bearer <token>",
 			})
@@ -31,16 +33,16 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 
 		claims, err := authService.ValidateAccessToken(parts[1])
 		if err != nil {
+			fmt.Println("[AuthMiddleware] token validation failed:", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "invalid or expired token",
 			})
 			return
 		}
 
-		// Store as the types handlers expect:
-		//   user_id → string (JWT stores IDs as strings; handlers parse with strconv)
-		//   email   → string
-		//   role    → string
+		fmt.Printf("[AuthMiddleware] user authenticated: id=%s, email=%s, role=%s\n",
+			claims.UserID, claims.Email, claims.Role)
+
 		c.Set("user_id", claims.UserID)
 		c.Set("email", claims.Email)
 		c.Set("role", claims.Role)
@@ -49,20 +51,10 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 }
 
 // RoleMiddleware enforces a minimum role using the full hierarchy:
-//
+
 //	user(1) < writer(2) < partner(3) < worker(4) < admin(5) < superadmin(6)
-//
-// A superadmin passes every RoleMiddleware call automatically.
-// An admin passes admin, writer, partner, worker checks automatically.
-//
-// Usage — protect a whole group:
-//
-//	blogs := p.Group("/blogs")
-//	blogs.Use(middleware.RoleMiddleware(entity.RoleWriter))
-//
-// Usage — protect a single route:
-//
-//	admin.GET("/users", middleware.RoleMiddleware(entity.RoleAdmin), userHandler.GetAllUsers)
+
+
 func RoleMiddleware(minRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleIface, exists := c.Get("role")
@@ -135,13 +127,7 @@ func SelfOrRoleMiddleware(minRole string) gin.HandlerFunc {
 	}
 }
 
-// OwnerOrAdminMiddleware is a variant of SelfOrRoleMiddleware that reads the
-// owner ID from a context key set by the handler instead of a URL param.
-// Use this for resources where the owner field is not in the URL (e.g. blog/:id
-// where the author_id comes from the DB row, not the URL).
-//
-// The handler must call c.Set("resource_owner_id", ownerID) before this runs,
-// OR you can use the service-layer ownership check pattern (preferred for most cases).
+
 func OwnerOrAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenIDIface, _ := c.Get("user_id")
