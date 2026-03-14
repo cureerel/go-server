@@ -1,3 +1,4 @@
+// internal/interfaces/http/handler/payment_handler.go
 package handler
 
 import (
@@ -10,85 +11,106 @@ import (
 )
 
 type PaymentHandler struct {
-	paymentService *service.PaymentService
+	svc *service.PaymentService
 }
 
-func NewPaymentHandler(paymentService *service.PaymentService) *PaymentHandler {
-	return &PaymentHandler{paymentService: paymentService}
+func NewPaymentHandler(svc *service.PaymentService) *PaymentHandler {
+	return &PaymentHandler{svc: svc}
 }
 
-// GET /payments/:id — admin or owner only
+// GET /api/payments/:id — owner or admin
 func (h *PaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment id required"})
 		return
 	}
-
-	payment, err := h.paymentService.GetByID(c.Request.Context(), id)
+	p, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"data": toPaymentResponse(payment)})
+	uid, _ := getUID(c)
+	if p.UserID != uid && !hasRole(c, entity.RoleAdmin) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	respond(c, toPaymentResponse(p))
 }
 
-// POST /payments/:id/refund — admin only
-func (h *PaymentHandler) Refund(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+// GET /api/payments — admin+
+func (h *PaymentHandler) GetAll(c *gin.Context) {
+	page, limit := paginate(c)
+	status := c.Query("status")
+	payments, total, err := h.svc.GetAll(c.Request.Context(), page, limit, status)
+	if err != nil {
+		respondErr(c, err)
 		return
 	}
-
-	if err := h.paymentService.Refund(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	list := make([]dto.PaymentResponse, len(payments))
+	for i := range payments {
+		list[i] = toPaymentResponse(&payments[i])
 	}
-
-	payment, _ := h.paymentService.GetByID(c.Request.Context(), id)
-	c.JSON(http.StatusOK, gin.H{"data": toPaymentResponse(payment), "message": "payment refunded"})
+	c.JSON(http.StatusOK, dto.PaymentListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// POST /payments/:id/complete — internal/webhook use
+// POST /api/payments/:id/complete — admin+
 func (h *PaymentHandler) MarkCompleted(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.paymentService.MarkCompleted(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := h.svc.MarkCompleted(c.Request.Context(), id); err != nil {
+		respondErr(c, err)
 		return
 	}
-
-	payment, _ := h.paymentService.GetByID(c.Request.Context(), id)
-	c.JSON(http.StatusOK, gin.H{"data": toPaymentResponse(payment), "message": "payment marked completed"})
+	c.JSON(http.StatusOK, gin.H{"message": "payment marked completed"})
 }
 
-// POST /payments/:id/fail — internal/webhook use
+// POST /api/payments/:id/fail — admin+
 func (h *PaymentHandler) MarkFailed(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.paymentService.MarkFailed(c.Request.Context(), id); err != nil {
+	if err := h.svc.MarkFailed(c.Request.Context(), id); err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "payment marked failed"})
+}
+
+// POST /api/payments/:id/refund — admin+
+func (h *PaymentHandler) Refund(c *gin.Context) {
+	id := c.Param("id")
+	var req dto.RefundRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	payment, _ := h.paymentService.GetByID(c.Request.Context(), id)
-	c.JSON(http.StatusOK, gin.H{"data": toPaymentResponse(payment), "message": "payment marked failed"})
+	if err := h.svc.Refund(c.Request.Context(), id, req.RefundID); err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "payment refunded"})
 }
 
-// helper to map entity.Payment -> dto.PaymentResponse
+// ── mapper ────────────────────────────────────────────────────
+
 func toPaymentResponse(p *entity.Payment) dto.PaymentResponse {
-	return dto.PaymentResponse{
+	r := dto.PaymentResponse{
 		ID:            p.ID,
-		UserID:        p.UserID,
 		OrderID:       p.OrderID,
-		Amount:        p.Amount,
-		Currency:      string(p.Currency),
+		UserID:        p.UserID,
+		AmountCents:   p.AmountCents,
+		AmountUSD:     p.AmountUSD(),
+		Currency:      p.Currency,
 		Status:        string(p.Status),
 		Provider:      string(p.Provider),
 		ProviderTxnID: p.ProviderTxnID,
 		CustomerEmail: p.CustomerEmail,
 		Description:   p.Description,
+		RefundID:      p.RefundID,
 		CreatedAt:     p.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:     p.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
+	if p.RefundedAt != nil {
+		s := p.RefundedAt.Format("2006-01-02T15:04:05Z")
+		r.RefundedAt = &s
+	}
+	return r
 }

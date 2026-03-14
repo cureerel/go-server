@@ -100,3 +100,23 @@ test: ## Run tests
 
 db-reset: ## Drop and recreate public schema
 	psql $(DATABASE_URL) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+PG_DUMP=/opt/homebrew/opt/libpq/bin/pg_dump
+PG_DUMP_URL=postgresql://postgres.wrluqbtnjjavubkbpmtz:KYyZGOuEyn1pFE4o@aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require
+
+db-dump-schema: ## Dump full DB schema to schema.sql
+	@echo "Dumping schema..."
+	$(PG_DUMP) "$(PG_DUMP_URL)" \
+		--schema-only \
+		--no-owner \
+		--no-acl \
+		--no-comments \
+		--schema=public \
+		--exclude-table=atlas_schema_revisions \
+		-f schema.sql
+	@echo "✓ schema.sql generated"
+
+db-fresh: ## Drop schema, recreate, apply from schema.sql
+	psql $(DATABASE_URL) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	psql $(DATABASE_URL) -f schema.sql
+	@echo "Fresh DB created from schema.sql"

@@ -1,143 +1,165 @@
+// internal/interfaces/http/handler/order_handler.go
 package handler
 
 import (
-    "fmt"
-    "net/http"
-    "strconv"
+	"net/http"
 
-    "github.com/cureerel/gotemplate/internal/application/service"
-    "github.com/cureerel/gotemplate/internal/domain/entity"
-    "github.com/cureerel/gotemplate/internal/interfaces/dto"
-    "github.com/gin-gonic/gin"
+	"github.com/cureerel/gotemplate/internal/application/service"
+	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/gin-gonic/gin"
 )
 
 type OrderHandler struct {
-    orderService *service.OrderService
+	orderSvc   *service.OrderService
+	paymentSvc *service.PaymentService
 }
 
-func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
-    return &OrderHandler{orderService: orderService}
+func NewOrderHandler(orderSvc *service.OrderService, paymentSvc *service.PaymentService) *OrderHandler {
+	return &OrderHandler{orderSvc: orderSvc, paymentSvc: paymentSvc}
 }
 
+// POST /api/orders — any authenticated user
 func (h *OrderHandler) Create(c *gin.Context) {
-    userID, exists := c.Get("user_id")
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-        return
-    }
+	var req dto.CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	uid, ok := getUID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
-    var req dto.CreateOrderRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	order, err := h.orderSvc.Create(c.Request.Context(), service.CreateOrderInput{
+		UserID:      uid,
+		ServiceID:   req.ServiceID,
+		Provider:    req.Provider,
+		AffiliateID: req.AffiliateID,
+		// CouponID resolved in a later phase (phase 7 coupons)
+	})
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
 
-    uid, _ := strconv.ParseUint(fmt.Sprintf("%v", userID), 10, 32)
+	// Create pending payment record immediately after order
+	userEmail, _ := c.Get("email")
+	email, _ := userEmail.(string)
+	payment, err := h.paymentSvc.InitPayment(
+		c.Request.Context(),
+		order,
+		entity.PaymentProvider(req.Provider),
+		email,
+	)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
 
-    items := make([]service.OrderItemInput, len(req.Items))
-    for i, item := range req.Items {
-        items[i] = service.OrderItemInput{
-            ProductID: item.ProductID,
-            Quantity:  item.Quantity,
-        }
-    }
-
-    order, err := h.orderService.Create(c.Request.Context(), service.CreateOrderInput{
-        UserID:   uint(uid),
-        Currency: entity.Currency(req.Currency),
-        Items:    items,
-    })
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusCreated, gin.H{"data": toOrderResponse(order)})
+	respondCreated(c, gin.H{
+		"order":   toOrderResponse(order),
+		"payment": toPaymentResponse(payment),
+	})
 }
 
-func (h *OrderHandler) GetByID(c *gin.Context) {
-    id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-
-    order, err := h.orderService.GetByID(c.Request.Context(), uint(id))
-    if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"data": toOrderResponse(order)})
-}
-
+// GET /api/orders/me — any authenticated user
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {
-    userID, exists := c.Get("user_id")
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-        return
-    }
-
-    page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-    limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-    uid, _ := strconv.ParseUint(fmt.Sprintf("%v", userID), 10, 32)
-
-    orders, total, err := h.orderService.GetByUser(c.Request.Context(), uint(uid), page, limit)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-
-    result := make([]dto.OrderResponse, len(orders))
-    for i, o := range orders {
-        result[i] = toOrderResponse(&o)
-    }
-
-    c.JSON(http.StatusOK, dto.OrderListResponse{
-        Data:  result,
-        Total: total,
-        Page:  page,
-        Limit: limit,
-    })
+	uid, _ := getUID(c)
+	page, limit := paginate(c)
+	orders, total, err := h.orderSvc.GetMyOrders(c.Request.Context(), uid, page, limit)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	list := make([]dto.OrderResponse, len(orders))
+	for i := range orders {
+		list[i] = toOrderResponse(&orders[i])
+	}
+	c.JSON(http.StatusOK, dto.OrderListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
+// GET /api/orders/:id — owner or admin
+func (h *OrderHandler) GetByID(c *gin.Context) {
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	order, err := h.orderSvc.GetByID(c.Request.Context(), id)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	uid, _ := getUID(c)
+	if order.UserID != uid && !hasRole(c, entity.RoleAdmin) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	respond(c, toOrderResponse(order))
+}
+
+// GET /api/orders — admin+
+func (h *OrderHandler) GetAll(c *gin.Context) {
+	page, limit := paginate(c)
+	status := c.Query("status")
+	orders, total, err := h.orderSvc.GetAll(c.Request.Context(), page, limit, status)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	list := make([]dto.OrderResponse, len(orders))
+	for i := range orders {
+		list[i] = toOrderResponse(&orders[i])
+	}
+	c.JSON(http.StatusOK, dto.OrderListResponse{Data: list, Total: total, Page: page, Limit: limit})
+}
+
+// PATCH /api/orders/:id/status — admin+
 func (h *OrderHandler) UpdateStatus(c *gin.Context) {
-    id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-        return
-    }
-
-    var req dto.UpdateOrderStatusRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-
-    if err := h.orderService.UpdateStatus(c.Request.Context(), uint(id), entity.OrderStatus(req.Status)); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "order status updated"})
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	var req dto.UpdateOrderStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.orderSvc.UpdateStatus(c.Request.Context(), id, entity.OrderStatus(req.Status)); err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "order status updated"})
 }
+
+// ── mapper ────────────────────────────────────────────────────
 
 func toOrderResponse(o *entity.Order) dto.OrderResponse {
-    items := make([]dto.OrderItemResponse, len(o.Items))
-    for i, item := range o.Items {
-        items[i] = dto.OrderItemResponse{
-            ID:        item.ID,
-            ProductID: item.ProductID,
-            Type:      string(item.Type),
-            Quantity:  item.Quantity,
-            UnitPrice: item.UnitPrice,
-        }
-    }
-    return dto.OrderResponse{
-        ID:          o.ID,
-        UserID:      o.UserID,
-        Status:      string(o.Status),
-        TotalAmount: o.TotalAmount,
-        Currency:    string(o.Currency),
-        Items:       items,
-        CreatedAt:   o.CreatedAt.Format("2006-01-02T15:04:05Z"),
-        UpdatedAt:   o.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-    }
+	items := make([]dto.OrderItemResponse, len(o.Items))
+	for i, item := range o.Items {
+		items[i] = dto.OrderItemResponse{
+			ID:        item.ID,
+			ServiceID: item.ServiceID,
+			Title:     item.Title,
+			Quantity:  item.Quantity,
+			UnitPrice: item.UnitPrice,
+			UnitUSD:   float64(item.UnitPrice) / 100,
+		}
+	}
+	return dto.OrderResponse{
+		ID:              o.ID,
+		UserID:          o.UserID,
+		ServiceID:       o.ServiceID,
+		Status:          string(o.Status),
+		TotalCents:      o.TotalCents,
+		TotalUSD:        o.TotalUSD(),
+		Currency:        o.Currency,
+		PaymentProvider: o.PaymentProvider,
+		Items:           items,
+		CreatedAt:       o.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:       o.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+	}
 }

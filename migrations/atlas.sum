@@ -1,3 +1,8 @@
-h1:a6A0cMtpfWP+1I+r3mA9QvponRSYXJGsWfcKdQyiwzk=
+h1:oZbaxj4OmfwoY+RuNtjaDc/MRUZbXWRtFYaFmPs5Xac=
 20260304051233_init_schema.sql h1:AqmDM7bIh0+3FepYMLdEOfx1yc+WOI+yXAh2Y9CMZOQ=
 20260304071215_add_writer_role.sql h1:hcdCkjS1k0liPn1aG7AMVgWhRYnFLxs3xOtSk0zUk44=
+20260309125137_extend_existing_tables.sql h1:80kDPuvH2NOJ0OAitztaSFLo/UdVu0ULcH7jx4GErW4=
+20260309125145_new_tables.sql h1:5CnP5tN+pGKyistnMZ5xliOhHHCIFvyTIecCdNsUPAU=
+20260309150718_rders_payments.sql h1:i9XDhjtOVoN76RxBlZDipi171NqqEFiIpe/kMtbk3bU=
+20260314081025_add_blog_excerpt.sql h1:qdUGi6yWTqnmK3FfQF6A1Jw2P6w4ZeBLeEhrm7VLoLo=
+20260314083856_add_published_at.sql h1:2cqZHe0xqRnRJmc0tFIh2h0L2OcINeia6ISEX0B7BFY=
