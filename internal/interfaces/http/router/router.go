@@ -15,21 +15,23 @@ import (
 )
 
 func SetupRouter(
-	userHandler      *handler.UserHandler,
-	blogHandler      *handler.BlogHandler,
-	authHandler      *handler.AuthHandler,
-	authService      *service.AuthService,
-	serviceHandler   *handler.ServiceHandler,
-	orderHandler     *handler.OrderHandler,
-	paymentHandler   *handler.PaymentHandler,
-	couponHandler    *handler.CouponHandler,
-	payoutHandler    *handler.PayoutHandler,
-	ticketHandler    *handler.TicketHandler,
-	dashboardHandler *handler.DashboardHandler,
-	superadminHandler *handler.SuperAdminHandler,
-	uploadHandler    *handler.UploadHandler,
-	log              logger.Logger,
-	allowedOrigins   []string,
+	userHandler          *handler.UserHandler,
+	blogHandler          *handler.BlogHandler,
+	authHandler          *handler.AuthHandler,
+	authService          *service.AuthService,
+	serviceHandler       *handler.ServiceHandler,
+	orderHandler         *handler.OrderHandler,
+	paymentHandler       *handler.PaymentHandler,
+	couponHandler        *handler.CouponHandler,
+	payoutHandler        *handler.PayoutHandler,
+	ticketHandler        *handler.TicketHandler,
+	dashboardHandler     *handler.DashboardHandler,
+	superadminHandler    *handler.SuperAdminHandler,
+	uploadHandler        *handler.UploadHandler,
+	membershipHandler    *handler.MembershipHandler,      
+	pgHandler            *handler.PaymentGatewayHandler,  
+	log                  logger.Logger,
+	allowedOrigins       []string,
 ) *gin.Engine {
 
 	r := gin.New()
@@ -57,7 +59,7 @@ func SetupRouter(
 
 	api := r.Group("/api")
 
-	// ── Public ────────────────────────────────────────────────
+	// ── Public ────────────────────────────────────────────────────
 	auth := api.Group("/auth")
 	{
 		auth.POST("/register/init",         authHandler.RegisterInit)
@@ -76,7 +78,10 @@ func SetupRouter(
 	api.GET("/services/:id",     serviceHandler.GetByID)
 	api.GET("/coupons/validate", couponHandler.Validate)
 
-	// ── Protected (any authenticated user) ───────────────────
+	// Stripe webhook — NO auth middleware, Stripe sends Stripe-Signature header
+	api.POST("/payments/stripe/webhook", pgHandler.StripeWebhook)
+
+	// ── Protected (any authenticated user) ────────────────────────
 	p := api.Group("")
 	p.Use(middleware.AuthMiddleware(authService))
 	{
@@ -88,16 +93,76 @@ func SetupRouter(
 
 		p.GET("/services/mine", serviceHandler.GetMine)
 
+		// ── Memberships ───────────────────────────────────────────
+		memberships := p.Group("/memberships")
+		{
+			memberships.GET("/me",        membershipHandler.GetMine)
+			memberships.POST("/activate", membershipHandler.Activate)
+			memberships.POST("/upgrade",  membershipHandler.Upgrade)
+			memberships.DELETE("/cancel", membershipHandler.Cancel)
+		}
+
+		// ── Payment gateway (Razorpay + Stripe session creation) ──
+		p.POST("/payments/razorpay/create-order", pgHandler.RazorpayCreateOrder)
+		p.POST("/payments/razorpay/verify",       pgHandler.RazorpayVerify)
+		p.POST("/payments/stripe/create-session", pgHandler.StripeCreateSession)
+
+		// ── Orders (merged group — no duplicate path conflict) ────
 		orders := p.Group("/orders")
 		{
 			orders.POST("",    orderHandler.Create)
 			orders.GET("/me",  orderHandler.GetMyOrders)
 			orders.GET("/:id", orderHandler.GetByID)
+
+			orders.GET("",              middleware.RoleMiddleware(entity.RoleAdmin), orderHandler.GetAll)
+			orders.PATCH("/:id/status", middleware.RoleMiddleware(entity.RoleAdmin), orderHandler.UpdateStatus)
 		}
 
-		p.GET("/payments/:id", paymentHandler.GetByID)
-		p.GET("/payouts/me",   payoutHandler.GetMine)
+		// ── Payments (merged group) ───────────────────────────────
+		payments := p.Group("/payments")
+		{
+			payments.GET("/:id", paymentHandler.GetByID)
 
+			payments.GET("",               middleware.RoleMiddleware(entity.RoleAdmin), paymentHandler.GetAll)
+			payments.POST("/:id/complete", middleware.RoleMiddleware(entity.RoleAdmin), paymentHandler.MarkCompleted)
+			payments.POST("/:id/fail",     middleware.RoleMiddleware(entity.RoleAdmin), paymentHandler.MarkFailed)
+			payments.POST("/:id/refund",   middleware.RoleMiddleware(entity.RoleAdmin), paymentHandler.Refund)
+		}
+
+		// ── Payouts (merged group) ────────────────────────────────
+		payouts := p.Group("/payouts")
+		{
+			payouts.GET("/me", payoutHandler.GetMine)
+
+			payouts.GET("",          middleware.RoleMiddleware(entity.RoleAdmin), payoutHandler.GetAll)
+			payouts.POST("/:id/pay", middleware.RoleMiddleware(entity.RoleAdmin), payoutHandler.MarkPaid)
+		}
+
+		// ── Coupons (merged group) ────────────────────────────────
+		coupons := p.Group("/coupons")
+		{
+			coupons.POST("",    middleware.RoleMiddleware(entity.RolePartner), couponHandler.Create)
+			coupons.GET("/:id", middleware.RoleMiddleware(entity.RolePartner), couponHandler.GetByID)
+
+			coupons.GET("",              middleware.RoleMiddleware(entity.RoleAdmin), couponHandler.GetAll)
+			coupons.POST("/:id/approve", middleware.RoleMiddleware(entity.RoleAdmin), couponHandler.Approve)
+			coupons.POST("/:id/reject",  middleware.RoleMiddleware(entity.RoleAdmin), couponHandler.Reject)
+		}
+
+		// ── Services (merged group) ───────────────────────────────
+		services := p.Group("/services")
+		{
+			services.POST("",           middleware.RoleMiddleware(entity.RolePartner), serviceHandler.Create)
+			services.PUT("/:id",        middleware.RoleMiddleware(entity.RolePartner), serviceHandler.Update)
+			services.DELETE("/:id",     middleware.RoleMiddleware(entity.RolePartner), serviceHandler.Delete)
+			services.POST("/:id/live",  middleware.RoleMiddleware(entity.RolePartner), serviceHandler.SetLive)
+			services.POST("/:id/pause", middleware.RoleMiddleware(entity.RolePartner), serviceHandler.Pause)
+
+			services.POST("/:id/approve", middleware.RoleMiddleware(entity.RoleAdmin), serviceHandler.Approve)
+			services.POST("/:id/reject",  middleware.RoleMiddleware(entity.RoleAdmin), serviceHandler.Reject)
+		}
+
+		// ── Tickets (merged group) ────────────────────────────────
 		tickets := p.Group("/tickets")
 		{
 			tickets.POST("",              ticketHandler.Create)
@@ -106,132 +171,58 @@ func SetupRouter(
 			tickets.POST("/:id/close",    ticketHandler.Close)
 			tickets.POST("/:id/messages", ticketHandler.SendMessage)
 			tickets.GET("/:id/messages",  ticketHandler.GetMessages)
+
+			tickets.GET("",              middleware.RoleMiddleware(entity.RoleWorker), ticketHandler.GetAll)
+			tickets.POST("/:id/assign",  middleware.RoleMiddleware(entity.RoleWorker), ticketHandler.Assign)
+			tickets.POST("/:id/resolve", middleware.RoleMiddleware(entity.RoleWorker), ticketHandler.Resolve)
 		}
 
+		// ── Dashboard (merged group) ──────────────────────────────
 		dash := p.Group("/dashboard")
 		{
-			dash.GET("",       dashboardHandler.Get)
-			dash.GET("/user",  dashboardHandler.UserView)
+			dash.GET("",        dashboardHandler.Get)
+			dash.GET("/user",   dashboardHandler.UserView)
+			dash.GET("/writer", middleware.RoleMiddleware(entity.RoleWriter),  dashboardHandler.WriterView)
+			dash.GET("/partner", middleware.RoleMiddleware(entity.RolePartner), dashboardHandler.PartnerView)
+			dash.GET("/worker", middleware.RoleMiddleware(entity.RoleWorker),  dashboardHandler.WorkerView)
+			dash.GET("/admin",  middleware.RoleMiddleware(entity.RoleAdmin),   dashboardHandler.AdminView)
 		}
 
-		// Self-service upgrade requests
+		// ── Users (admin+) ────────────────────────────────────────
+		users := p.Group("/users")
+		{
+			users.GET("",        middleware.RoleMiddleware(entity.RoleAdmin), userHandler.GetAllUsers)
+			users.GET("/:id",    middleware.RoleMiddleware(entity.RoleAdmin), userHandler.GetUserByID)
+			users.POST("",       middleware.RoleMiddleware(entity.RoleAdmin), userHandler.CreateUser)
+			users.PUT("/:id",    middleware.RoleMiddleware(entity.RoleAdmin), userHandler.UpdateUser)
+			users.DELETE("/:id", middleware.RoleMiddleware(entity.RoleAdmin), userHandler.DeleteUser)
+		}
+
+		// ── Blogs (writer+) ───────────────────────────────────────
+		blogs := p.Group("/blogs")
+		{
+			blogs.POST("",       middleware.RoleMiddleware(entity.RoleWriter), blogHandler.Create)
+			blogs.PUT("/:id",    middleware.RoleMiddleware(entity.RoleWriter), blogHandler.Update)
+			blogs.PATCH("/:id",  middleware.RoleMiddleware(entity.RoleWriter), blogHandler.Patch)
+			blogs.DELETE("/:id", middleware.RoleMiddleware(entity.RoleWriter), blogHandler.Delete)
+		}
+
+		// ── Upgrade requests ──────────────────────────────────────
 		upgrades := p.Group("/upgrade-requests")
 		{
-			upgrades.POST("",    superadminHandler.RequestUpgrade)
-			upgrades.GET("/me",  superadminHandler.GetMyUpgradeRequest)
+			upgrades.POST("",   superadminHandler.RequestUpgrade)
+			upgrades.GET("/me", superadminHandler.GetMyUpgradeRequest)
 		}
-	}
 
-	// ── writer+ ───────────────────────────────────────────────
-	blogs := p.Group("/blogs")
-	blogs.Use(middleware.RoleMiddleware(entity.RoleWriter))
-	{
-		blogs.POST("",       blogHandler.Create)
-		blogs.PUT("/:id",    blogHandler.Update)
-		blogs.PATCH("/:id",  blogHandler.Patch)
-		blogs.DELETE("/:id", blogHandler.Delete)
-	}
-
-	writerDash := p.Group("/dashboard")
-	writerDash.Use(middleware.RoleMiddleware(entity.RoleWriter))
-	writerDash.GET("/writer", dashboardHandler.WriterView)
-
-	// ── partner+ ──────────────────────────────────────────────
-	myServices := p.Group("/services")
-	myServices.Use(middleware.RoleMiddleware(entity.RolePartner))
-	{
-		myServices.POST("",           serviceHandler.Create)
-		myServices.PUT("/:id",        serviceHandler.Update)
-		myServices.DELETE("/:id",     serviceHandler.Delete)
-		myServices.POST("/:id/live",  serviceHandler.SetLive)
-		myServices.POST("/:id/pause", serviceHandler.Pause)
-	}
-
-	myCoupons := p.Group("/coupons")
-	myCoupons.Use(middleware.RoleMiddleware(entity.RolePartner))
-	{
-		myCoupons.POST("",    couponHandler.Create)
-		myCoupons.GET("/:id", couponHandler.GetByID)
-	}
-
-	partnerDash := p.Group("/dashboard")
-	partnerDash.Use(middleware.RoleMiddleware(entity.RolePartner))
-	partnerDash.GET("/partner", dashboardHandler.PartnerView)
-
-	// ── worker+ ───────────────────────────────────────────────
-	workerTickets := p.Group("/tickets")
-	workerTickets.Use(middleware.RoleMiddleware(entity.RoleWorker))
-	{
-		workerTickets.GET("",              ticketHandler.GetAll)
-		workerTickets.POST("/:id/assign",  ticketHandler.Assign)
-		workerTickets.POST("/:id/resolve", ticketHandler.Resolve)
-	}
-
-	workerDash := p.Group("/dashboard")
-	workerDash.Use(middleware.RoleMiddleware(entity.RoleWorker))
-	workerDash.GET("/worker", dashboardHandler.WorkerView)
-
-	// ── admin+ ────────────────────────────────────────────────
-	adminUsers := p.Group("/users")
-	adminUsers.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminUsers.GET("",        userHandler.GetAllUsers)
-		adminUsers.GET("/:id",    userHandler.GetUserByID)
-		adminUsers.POST("",       userHandler.CreateUser)
-		adminUsers.PUT("/:id",    userHandler.UpdateUser)
-		adminUsers.DELETE("/:id", userHandler.DeleteUser)
-	}
-
-	adminServices := p.Group("/services")
-	adminServices.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminServices.POST("/:id/approve", serviceHandler.Approve)
-		adminServices.POST("/:id/reject",  serviceHandler.Reject)
-	}
-
-	adminOrders := p.Group("/orders")
-	adminOrders.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminOrders.GET("",              orderHandler.GetAll)
-		adminOrders.PATCH("/:id/status", orderHandler.UpdateStatus)
-	}
-
-	adminPayments := p.Group("/payments")
-	adminPayments.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminPayments.GET("",               paymentHandler.GetAll)
-		adminPayments.POST("/:id/complete", paymentHandler.MarkCompleted)
-		adminPayments.POST("/:id/fail",     paymentHandler.MarkFailed)
-		adminPayments.POST("/:id/refund",   paymentHandler.Refund)
-	}
-
-	adminCoupons := p.Group("/coupons")
-	adminCoupons.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminCoupons.GET("",              couponHandler.GetAll)
-		adminCoupons.POST("/:id/approve", couponHandler.Approve)
-		adminCoupons.POST("/:id/reject",  couponHandler.Reject)
-	}
-
-	adminPayouts := p.Group("/payouts")
-	adminPayouts.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	{
-		adminPayouts.GET("",          payoutHandler.GetAll)
-		adminPayouts.POST("/:id/pay", payoutHandler.MarkPaid)
-	}
-
-	adminDash := p.Group("/dashboard")
-	adminDash.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-	adminDash.GET("/admin", dashboardHandler.AdminView)
-
-	// ── superadmin only ───────────────────────────────────────
-	sa := p.Group("/superadmin")
-	sa.Use(middleware.RoleMiddleware(entity.RoleSuperAdmin))
-	{
-		sa.GET("/stats",                    superadminHandler.Stats)
-		sa.PATCH("/users/:id/role",         superadminHandler.SetRole)
-		sa.GET("/upgrades",                 superadminHandler.GetPendingUpgrades)
-		sa.POST("/upgrades/:id/review",     superadminHandler.ReviewUpgrade)
+		// ── Superadmin ────────────────────────────────────────────
+		sa := p.Group("/superadmin")
+		sa.Use(middleware.RoleMiddleware(entity.RoleSuperAdmin))
+		{
+			sa.GET("/stats",                superadminHandler.Stats)
+			sa.PATCH("/users/:id/role",     superadminHandler.SetRole)
+			sa.GET("/upgrades",             superadminHandler.GetPendingUpgrades)
+			sa.POST("/upgrades/:id/review", superadminHandler.ReviewUpgrade)
+		}
 	}
 
 	return r

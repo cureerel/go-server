@@ -19,7 +19,7 @@ type RegisterVerifyRequest struct {
 	Code     string `json:"code"     binding:"required,len=6"`
 }
 
-// ── Password reset (2-step OTP flow) ─────────────────────────
+
 
 type PasswordResetInitRequest struct {
 	Email string `json:"email" binding:"required,email"`
@@ -59,7 +59,7 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
-// ── Signup (kept for backward compat, maps to RegisterVerify) ─
+
 
 type SignupRequest struct {
 	Name     string `json:"name"     binding:"required,min=2,max=100"`

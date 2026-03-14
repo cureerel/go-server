@@ -71,13 +71,10 @@ type PlatformConfig struct {
 }
 
 func LoadConfig() (*Config, error) {
-	// Try to load .env file if it exists (for local development)
-	// This won't fail on Render since .env is not committed
 	_ = godotenv.Load(".env")
 
 	var cfg Config
 
-	// Load YAML config if it exists
 	for _, path := range []string{"configs/config.yaml", "/app/configs/config.yaml"} {
 		if _, err := os.Stat(path); err == nil {
 			data, err := os.ReadFile(path)
@@ -91,7 +88,6 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	// Helper to get value from environment (works with Render system env and .env)
 	env := func(k, fb string) string {
 		if v := os.Getenv(k); v != "" {
 			fmt.Printf("[config] %s loaded from ENV\n", k)
@@ -103,29 +99,18 @@ func LoadConfig() (*Config, error) {
 		return fb
 	}
 
-	// Server - Render uses PORT env var
 	cfg.Server.Port = env("PORT", cfg.Server.Port)
 	cfg.Server.Env = env("APP_ENV", cfg.Server.Env)
-
-	// Database - Render uses DATABASE_URL or EXTERNAL_DATABASE_URL
-	// Check multiple common env var names used by Render and other platforms
 	cfg.Database.DSN = env("DATABASE_URL", env("EXTERNAL_DATABASE_URL", cfg.Database.DSN))
-
-	// JWT secrets
 	cfg.JWT.AccessSecret = env("JWT_ACCESS_SECRET", cfg.JWT.AccessSecret)
 	cfg.JWT.RefreshSecret = env("JWT_REFRESH_SECRET", cfg.JWT.RefreshSecret)
-
-	// Email - Resend
 	cfg.Email.ResendAPIKey = env("RESEND_API_KEY", cfg.Email.ResendAPIKey)
 	cfg.Email.FromName = env("EMAIL_FROM_NAME", cfg.Email.FromName)
 	cfg.Email.FromAddress = env("EMAIL_FROM_ADDRESS", cfg.Email.FromAddress)
-
-	// Cloudinary / Storage
 	cfg.Storage.CloudinaryCloudName = env("CLOUDINARY_CLOUD_NAME", cfg.Storage.CloudinaryCloudName)
 	cfg.Storage.CloudinaryAPIKey = env("CLOUDINARY_API_KEY", cfg.Storage.CloudinaryAPIKey)
 	cfg.Storage.CloudinaryAPISecret = env("CLOUDINARY_API_SECRET", cfg.Storage.CloudinaryAPISecret)
 
-	// Set defaults if still empty
 	if cfg.Server.Port == "" {
 		cfg.Server.Port = "8080"
 		fmt.Printf("[config] PORT defaulting to 8080\n")
@@ -140,15 +125,11 @@ func LoadConfig() (*Config, error) {
 	if cfg.Platform.OTPExpiryMinutes == 0 {
 		cfg.Platform.OTPExpiryMinutes = 15
 	}
-
-	// Override OTP expiry from env
 	if v := os.Getenv("OTP_EXPIRY_MINUTES"); v != "" {
 		fmt.Sscanf(v, "%d", &cfg.Platform.OTPExpiryMinutes)
 	}
-
-	// CORS origins from env (comma-separated)
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
-		cfg.CORS.AllowedOrigins = nil // Clear YAML values
+		cfg.CORS.AllowedOrigins = nil
 		for _, o := range strings.Split(v, ",") {
 			if o = strings.TrimSpace(o); o != "" {
 				cfg.CORS.AllowedOrigins = append(cfg.CORS.AllowedOrigins, o)
@@ -156,7 +137,6 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	// Validate required config
 	if cfg.Database.DSN == "" {
 		return nil, fmt.Errorf("database DSN is required (set DATABASE_URL or EXTERNAL_DATABASE_URL env var, or database.dsn in config.yaml)")
 	}
@@ -207,55 +187,60 @@ func main() {
 	}
 
 	// ── Repositories ──────────────────────────────────────────
-	userRepo := repositories.NewUserRepository(db)
-	blogRepo := repositories.NewBlogRepository(db)
-	authRepo := repositories.NewAuthRepository(db)
-	sessionRepo := repositories.NewSessionRepository(db)
-	otpRepo := repositories.NewOTPRepository(db)
-	serviceRepo := repositories.NewServiceRepository(db)
-	orderRepo := repositories.NewOrderRepository(db)
-	paymentRepo := repositories.NewPaymentRepository(db)
-	couponRepo := repositories.NewCouponRepository(db)
-	couponUsageRepo := repositories.NewCouponUsageRepository(db)
-	payoutRepo := repositories.NewPayoutRepository(db)
-	ticketRepo := repositories.NewTicketRepository(db)
-	upgradeRepo := repositories.NewUpgradeRequestRepository(db)
+	userRepo         := repositories.NewUserRepository(db)
+	blogRepo         := repositories.NewBlogRepository(db)
+	authRepo         := repositories.NewAuthRepository(db)
+	sessionRepo      := repositories.NewSessionRepository(db)
+	otpRepo          := repositories.NewOTPRepository(db)
+	serviceRepo      := repositories.NewServiceRepository(db)
+	orderRepo        := repositories.NewOrderRepository(db)
+	paymentRepo      := repositories.NewPaymentRepository(db)
+	couponRepo       := repositories.NewCouponRepository(db)
+	couponUsageRepo  := repositories.NewCouponUsageRepository(db)
+	payoutRepo       := repositories.NewPayoutRepository(db)
+	ticketRepo       := repositories.NewTicketRepository(db)
+	upgradeRepo      := repositories.NewUpgradeRequestRepository(db)
+	membershipRepo   := repositories.NewMembershipRepository(db) // ← NEW
 
 	// ── Services ──────────────────────────────────────────────
-	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
+	authService       := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
 		AccessSecret: cfg.JWT.AccessSecret, RefreshSecret: cfg.JWT.RefreshSecret,
 	})
-	otpService := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
-	userService := service.NewUserService(userRepo)
-	blogService := service.NewBlogService(blogRepo)
-	serviceService := service.NewServiceService(serviceRepo)
-	orderService := service.NewOrderService(orderRepo, serviceRepo, couponRepo)
-	paymentService := service.NewPaymentService(paymentRepo, orderRepo)
-	couponService := service.NewCouponService(couponRepo, couponUsageRepo, payoutRepo)
-	payoutService := service.NewPayoutService(payoutRepo)
-	ticketService := service.NewTicketService(ticketRepo)
-	dashboardService := service.NewDashboardService(db)
+	otpService        := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
+	userService       := service.NewUserService(userRepo)
+	blogService       := service.NewBlogService(blogRepo)
+	serviceService    := service.NewServiceService(serviceRepo)
+	orderService      := service.NewOrderService(orderRepo, serviceRepo, couponRepo)
+	paymentService    := service.NewPaymentService(paymentRepo, orderRepo)
+	couponService     := service.NewCouponService(couponRepo, couponUsageRepo, payoutRepo)
+	payoutService     := service.NewPayoutService(payoutRepo)
+	ticketService     := service.NewTicketService(ticketRepo)
+	dashboardService  := service.NewDashboardService(db)
 	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
+	membershipService := service.NewMembershipService(membershipRepo) // ← NEW
 
 	// ── Handlers ──────────────────────────────────────────────
-	authHandler := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
-	userHandler := handler.NewUserHandler(userService)
-	blogHandler := handler.NewBlogHandler(blogService)
-	serviceHandler := handler.NewServiceHandler(serviceService)
-	orderHandler := handler.NewOrderHandler(orderService, paymentService)
-	paymentHandler := handler.NewPaymentHandler(paymentService)
-	couponHandler := handler.NewCouponHandler(couponService)
-	payoutHandler := handler.NewPayoutHandler(payoutService)
-	ticketHandler := handler.NewTicketHandler(ticketService)
-	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+	authHandler       := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
+	userHandler       := handler.NewUserHandler(userService)
+	blogHandler       := handler.NewBlogHandler(blogService)
+	serviceHandler    := handler.NewServiceHandler(serviceService)
+	orderHandler      := handler.NewOrderHandler(orderService, paymentService)
+	paymentHandler    := handler.NewPaymentHandler(paymentService)
+	couponHandler     := handler.NewCouponHandler(couponService)
+	payoutHandler     := handler.NewPayoutHandler(payoutService)
+	ticketHandler     := handler.NewTicketHandler(ticketService)
+	dashboardHandler  := handler.NewDashboardHandler(dashboardService)
 	superadminHandler := handler.NewSuperAdminHandler(superAdminService)
-	uploadHandler := handler.NewUploadHandler(storageClient)
+	uploadHandler     := handler.NewUploadHandler(storageClient)
+	membershipHandler := handler.NewMembershipHandler(membershipService)         // ← NEW
+	pgHandler         := handler.NewPaymentGatewayHandler(membershipService)     // ← NEW
 
 	r := router.SetupRouter(
 		userHandler, blogHandler, authHandler, authService,
 		serviceHandler, orderHandler, paymentHandler,
 		couponHandler, payoutHandler, ticketHandler,
 		dashboardHandler, superadminHandler, uploadHandler,
+		membershipHandler, pgHandler, // ← NEW
 		log, cfg.CORS.AllowedOrigins,
 	)
 

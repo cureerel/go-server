@@ -6,8 +6,8 @@ package dto
 type CreateOrderRequest struct {
 	ServiceID   uint   `json:"service_id"   binding:"required,min=1"`
 	Provider    string `json:"provider"     binding:"required,oneof=stripe razorpay"`
-	CouponCode  string `json:"coupon_code"`   // optional — resolved in handler
-	AffiliateID *uint  `json:"affiliate_id"`  // optional
+	CouponCode  string `json:"coupon_code"`  
+	AffiliateID *uint  `json:"affiliate_id"` 
 }
 
 type UpdateOrderStatusRequest struct {
