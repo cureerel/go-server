@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
+	"github.com/cureerel/cserver/internal/application/service"
 	"github.com/joho/godotenv"
-	emailinfra "github.com/cureerel/gotemplate/internal/infrastructure/email"
-	"github.com/cureerel/gotemplate/internal/infrastructure/email/resend"
-	"github.com/cureerel/gotemplate/internal/infrastructure/postgres"
-	"github.com/cureerel/gotemplate/internal/infrastructure/postgres/repositories"
-	storageinfra "github.com/cureerel/gotemplate/internal/infrastructure/storage"
-	"github.com/cureerel/gotemplate/internal/infrastructure/storage/cloudinary"
-	"github.com/cureerel/gotemplate/internal/interfaces/http/handler"
-	"github.com/cureerel/gotemplate/internal/interfaces/http/router"
-	"github.com/cureerel/gotemplate/pkg/logger"
+	emailinfra "github.com/cureerel/cserver/internal/infrastructure/email"
+	"github.com/cureerel/cserver/internal/infrastructure/email/resend"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres/repositories"
+	storageinfra "github.com/cureerel/cserver/internal/infrastructure/storage"
+	"github.com/cureerel/cserver/internal/infrastructure/storage/cloudinary"
+	"github.com/cureerel/cserver/internal/interfaces/http/handler"
+	"github.com/cureerel/cserver/internal/interfaces/http/router"
+	"github.com/cureerel/cserver/pkg/logger"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
@@ -200,7 +200,8 @@ func main() {
 	payoutRepo       := repositories.NewPayoutRepository(db)
 	ticketRepo       := repositories.NewTicketRepository(db)
 	upgradeRepo      := repositories.NewUpgradeRequestRepository(db)
-	membershipRepo   := repositories.NewMembershipRepository(db) // ← NEW
+	membershipRepo   := repositories.NewMembershipRepository(db)
+	coinRepo         := repositories.NewCoinRepository(db)
 
 	// ── Services ──────────────────────────────────────────────
 	authService       := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
@@ -208,23 +209,24 @@ func main() {
 	})
 	otpService        := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
 	userService       := service.NewUserService(userRepo)
-	blogService       := service.NewBlogService(blogRepo)
+	blogService       := service.NewBlogService(blogRepo, coinRepo, membershipRepo)
+	coinService       := service.NewCoinService(db, coinRepo)
 	serviceService    := service.NewServiceService(serviceRepo)
-	orderService      := service.NewOrderService(orderRepo, serviceRepo, couponRepo)
+	orderService      := service.NewOrderService(db, orderRepo, serviceRepo, couponRepo, coinRepo)
 	paymentService    := service.NewPaymentService(paymentRepo, orderRepo)
 	couponService     := service.NewCouponService(couponRepo, couponUsageRepo, payoutRepo)
 	payoutService     := service.NewPayoutService(payoutRepo)
 	ticketService     := service.NewTicketService(ticketRepo)
 	dashboardService  := service.NewDashboardService(db)
 	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
-	membershipService := service.NewMembershipService(membershipRepo) // ← NEW
+	membershipService := service.NewMembershipService(membershipRepo)
 
 	// ── Handlers ──────────────────────────────────────────────
 	authHandler       := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
 	userHandler       := handler.NewUserHandler(userService)
-	blogHandler       := handler.NewBlogHandler(blogService)
+	blogHandler       := handler.NewBlogHandler(blogService, coinService)
 	serviceHandler    := handler.NewServiceHandler(serviceService)
-	orderHandler      := handler.NewOrderHandler(orderService, paymentService)
+	orderHandler      := handler.NewOrderHandler(orderService)
 	paymentHandler    := handler.NewPaymentHandler(paymentService)
 	couponHandler     := handler.NewCouponHandler(couponService)
 	payoutHandler     := handler.NewPayoutHandler(payoutService)
@@ -232,15 +234,16 @@ func main() {
 	dashboardHandler  := handler.NewDashboardHandler(dashboardService)
 	superadminHandler := handler.NewSuperAdminHandler(superAdminService)
 	uploadHandler     := handler.NewUploadHandler(storageClient)
-	membershipHandler := handler.NewMembershipHandler(membershipService)         // ← NEW
-	pgHandler         := handler.NewPaymentGatewayHandler(membershipService)     // ← NEW
+	membershipHandler := handler.NewMembershipHandler(membershipService)
+	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService)
+	coinHandler       := handler.NewCoinHandler(coinService)
 
 	r := router.SetupRouter(
 		userHandler, blogHandler, authHandler, authService,
 		serviceHandler, orderHandler, paymentHandler,
 		couponHandler, payoutHandler, ticketHandler,
 		dashboardHandler, superadminHandler, uploadHandler,
-		membershipHandler, pgHandler, // ← NEW
+		membershipHandler, pgHandler, coinHandler,
 		log, cfg.CORS.AllowedOrigins,
 	)
 

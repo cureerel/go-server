@@ -10,6 +10,7 @@ import (
 const (
 	RoleUser       = "user"
 	RoleWriter     = "writer"
+	RoleReviewer   = "reviewer"
 	RolePartner    = "partner"
 	RoleWorker     = "worker"
 	RoleAdmin      = "admin"
@@ -42,8 +43,12 @@ func (u *User) MigratePassword() {
 }
 
 // HasRole returns true if the user's role is at least the given role.
-// Order: user < writer < partner < worker < admin < superadmin
+// Order: user < writer < partner < worker < admin < superadmin.
+// Reviewer is editorial-only: does not inherit writer/partner routes via this ladder.
 func (u *User) HasRole(role string) bool {
+	if u.Role == RoleReviewer {
+		return role == RoleReviewer
+	}
 	order := map[string]int{
 		RoleUser:       1,
 		RoleWriter:     2,
@@ -51,6 +56,10 @@ func (u *User) HasRole(role string) bool {
 		RoleWorker:     4,
 		RoleAdmin:      5,
 		RoleSuperAdmin: 6,
+	}
+	// Reviewer is not in the ladder; only explicit RequireAnyRole should grant reviewer APIs.
+	if role == RoleReviewer {
+		return false
 	}
 	return order[u.Role] >= order[role]
 }

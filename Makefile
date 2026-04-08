@@ -2,7 +2,7 @@
         migrate-up migrate-down migrate-status migrate-create migrate-lint migrate-prod \
         lint fmt vet test prod-build
 
-APP_NAME  = gotemplate
+APP_NAME  = cserver
 BUILD_DIR = build
 CMD_DIR   = ./cmd/server
 

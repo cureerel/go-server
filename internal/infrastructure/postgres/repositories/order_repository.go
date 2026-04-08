@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/internal/infrastructure/postgres/models"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres/models"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +24,18 @@ func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error
 	}
 	order.ID = m.ID
 	// back-fill item IDs
+	for i, item := range m.Items {
+		order.Items[i].ID = item.ID
+	}
+	return nil
+}
+
+func (r *orderRepository) CreateWithTx(ctx context.Context, tx *gorm.DB, order *entity.Order) error {
+	m := models.OrderFromDomain(order)
+	if err := tx.WithContext(ctx).Create(m).Error; err != nil {
+		return err
+	}
+	order.ID = m.ID
 	for i, item := range m.Items {
 		order.Items[i].ID = item.ID
 	}

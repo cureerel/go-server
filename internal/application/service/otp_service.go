@@ -8,10 +8,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	emailinfra "github.com/cureerel/gotemplate/internal/infrastructure/email"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	emailinfra "github.com/cureerel/cserver/internal/infrastructure/email"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"golang.org/x/crypto/bcrypt"
 )
 

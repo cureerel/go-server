@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 

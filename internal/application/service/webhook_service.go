@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
 )
 
 type WebhookService struct {

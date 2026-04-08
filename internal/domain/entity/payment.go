@@ -14,8 +14,10 @@ const (
 )
 
 const (
-	ProviderStripe   PaymentProvider = "stripe"
-	ProviderRazorpay PaymentProvider = "razorpay"
+	ProviderStripe      PaymentProvider = "stripe"
+	ProviderRazorpay    PaymentProvider = "razorpay"
+	ProviderDodpayments PaymentProvider = "dodpayments"
+	ProviderCoins       PaymentProvider = "coins"
 )
 
 type Payment struct {

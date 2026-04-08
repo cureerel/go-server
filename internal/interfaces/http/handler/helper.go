@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"github.com/gin-gonic/gin"
 )
 

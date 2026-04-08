@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/infrastructure/email"
+	"github.com/cureerel/cserver/internal/infrastructure/email"
 )
 
 const baseURL = "https://api.resend.com"

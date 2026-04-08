@@ -3,7 +3,7 @@ package repository
 import (
     "context"
     "time"
-    "github.com/cureerel/gotemplate/internal/domain/entity"
+    "github.com/cureerel/cserver/internal/domain/entity"
 )
 
 type AuthRepository interface {

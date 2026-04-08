@@ -4,11 +4,14 @@ package dto
 type CreateBlogRequest struct {
 	Title         string `json:"title"          binding:"required,min=3"`
 	Content       string `json:"content"        binding:"required"`
-	Excerpt       string `json:"excerpt"`        
+	Excerpt       string `json:"excerpt"`
 	Tags          string `json:"tags"`
 	CoverImageURL string `json:"cover_image_url"`
 	CoverImageKey string `json:"cover_image_key"`
-	Status        string `json:"status"`         
+	Status        string `json:"status"`
+	AccessType    string `json:"access_type"`
+	CoinPrice     int64  `json:"coin_price"`
+	CoAuthorIDs   []uint `json:"co_author_ids"`
 }
 
 type UpdateBlogRequest struct {
@@ -29,6 +32,8 @@ type BlogResponse struct {
 	Excerpt       string `json:"excerpt"`
 	AuthorID      uint   `json:"author_id"`
 	Status        string `json:"status"`
+	AccessType    string `json:"access_type"`
+	CoinPrice     int64  `json:"coin_price"`
 	Tags          string `json:"tags"`
 	CoverImageURL string `json:"cover_image_url,omitempty"`
 	ViewsTotal    int64  `json:"views_total"`

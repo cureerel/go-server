@@ -4,18 +4,19 @@ package handler
 import (
 	"net/http"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 type BlogHandler struct {
-	svc *service.BlogService
+	svc  *service.BlogService
+	coin *service.CoinService
 }
 
-func NewBlogHandler(svc *service.BlogService) *BlogHandler {
-	return &BlogHandler{svc: svc}
+func NewBlogHandler(svc *service.BlogService, coin *service.CoinService) *BlogHandler {
+	return &BlogHandler{svc: svc, coin: coin}
 }
 
 // POST /api/blogs — writer+
@@ -33,12 +34,15 @@ func (h *BlogHandler) Create(c *gin.Context) {
 	blog, err := h.svc.Create(c.Request.Context(), service.CreateBlogInput{
 		Title:         req.Title,
 		Content:       req.Content,
-		Excerpt:       req.Excerpt,        // ← was missing
-		Status:        req.Status,         // ← was missing
+		Excerpt:       req.Excerpt,
+		Status:        req.Status,
 		AuthorID:      uid,
 		Tags:          req.Tags,
 		CoverImageURL: req.CoverImageURL,
 		CoverImageKey: req.CoverImageKey,
+		AccessType:    req.AccessType,
+		CoinPrice:     req.CoinPrice,
+		CoAuthorIDs:   req.CoAuthorIDs,
 	})
 	if err != nil {
 		respondErr(c, err)
@@ -66,14 +70,18 @@ func (h *BlogHandler) GetAll(c *gin.Context) {
 	})
 }
 
-// GET /api/blogs/:id — public
+// GET /api/blogs/:id — public (published only; optional auth unlocks member/paid content)
 func (h *BlogHandler) GetByID(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
 		respondErr(c, err)
 		return
 	}
-	blog, err := h.svc.GetByID(c.Request.Context(), id)
+	var viewer *uint
+	if uid, ok := getUID(c); ok {
+		viewer = &uid
+	}
+	blog, err := h.svc.GetByIDForReader(c.Request.Context(), id, viewer)
 	if err != nil {
 		respondErr(c, err)
 		return
@@ -85,7 +93,11 @@ func (h *BlogHandler) GetByID(c *gin.Context) {
 // GET /api/blogs/slug/:slug — public
 func (h *BlogHandler) GetBySlug(c *gin.Context) {
 	slug := c.Param("slug")
-	blog, err := h.svc.GetBySlug(c.Request.Context(), slug)
+	var viewer *uint
+	if uid, ok := getUID(c); ok {
+		viewer = &uid
+	}
+	blog, err := h.svc.GetBySlugForReader(c.Request.Context(), slug, viewer)
 	if err != nil {
 		respondErr(c, err)
 		return
@@ -200,13 +212,114 @@ func toBlogResponse(b *entity.Blog) dto.BlogResponse {
 		Title:         b.Title,
 		Slug:          b.Slug,
 		Content:       b.Content,
-		Excerpt:       b.Excerpt,           // ← was missing
+		Excerpt:       b.Excerpt,
 		AuthorID:      b.AuthorID,
 		Status:        string(b.Status),
+		AccessType:    string(b.AccessType),
+		CoinPrice:     b.CoinPrice,
 		Tags:          b.Tags,
 		CoverImageURL: b.CoverImageURL,
 		ViewsTotal:    b.ViewsTotal,
 		CreatedAt:     b.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:     b.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
+}
+
+// POST /api/blogs/:id/submit-review — writer/partner co-authors
+func (h *BlogHandler) SubmitForReview(c *gin.Context) {
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	uid, _ := getUID(c)
+	blog, err := h.svc.SubmitForReview(c.Request.Context(), id, uid, getRole(c))
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	respond(c, toBlogResponse(blog))
+}
+
+// GET /api/reviewer/blogs/pending
+func (h *BlogHandler) ListReviewQueue(c *gin.Context) {
+	page, limit := paginate(c)
+	blogs, total, err := h.svc.ListReviewQueue(c.Request.Context(), page, limit)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	list := make([]dto.BlogResponse, len(blogs))
+	for i := range blogs {
+		list[i] = toBlogResponse(&blogs[i])
+	}
+	c.JSON(http.StatusOK, dto.BlogListResponse{Data: list, Total: total, Page: page, Limit: limit})
+}
+
+// POST /api/reviewer/blogs/:id/approve
+func (h *BlogHandler) ReviewApprove(c *gin.Context) {
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	uid, _ := getUID(c)
+	blog, err := h.svc.ReviewApprove(c.Request.Context(), id, uid)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	respond(c, toBlogResponse(blog))
+}
+
+// POST /api/reviewer/blogs/:id/reject
+func (h *BlogHandler) ReviewReject(c *gin.Context) {
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	uid, _ := getUID(c)
+	blog, err := h.svc.ReviewReject(c.Request.Context(), id, uid, req.Note)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	respond(c, toBlogResponse(blog))
+}
+
+// POST /api/blogs/:id/unlock — spend coins for paid_coins posts
+func (h *BlogHandler) UnlockPaidBlog(c *gin.Context) {
+	if h.coin == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "coins unavailable"})
+		return
+	}
+	id, err := parseID(c, "id")
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	uid, ok := getUID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	blog, err := h.svc.GetByID(c.Request.Context(), id)
+	if err != nil {
+		respondErr(c, err)
+		return
+	}
+	if blog == nil || blog.Status != entity.BlogPublished || blog.AccessType != entity.AccessPaidCoins {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "post is not unlockable"})
+		return
+	}
+	if err := h.coin.UnlockBlog(c.Request.Context(), uid, blog.ID, blog.CoinPrice); err != nil {
+		respondErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "unlocked"})
 }

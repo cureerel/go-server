@@ -7,7 +7,7 @@ import (
 
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
-	storage "github.com/cureerel/gotemplate/internal/infrastructure/storage"
+	storage "github.com/cureerel/cserver/internal/infrastructure/storage"
 )
 
 type Client struct {
