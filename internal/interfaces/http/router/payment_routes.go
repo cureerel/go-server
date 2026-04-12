@@ -9,6 +9,7 @@ import (
 func registerPaymentRoutes(rg *gin.RouterGroup, d *Deps) {
 	// Public webhooks
 	rg.POST("/payments/stripe/webhook", d.PGHandler.StripeWebhook)
+	rg.POST("/payments/razorpay/webhook", d.PGHandler.RazorpayWebhook)
 
 	payments := rg.Group("/payments")
 	payments.Use(middleware.AuthMiddleware(d.AuthService))
