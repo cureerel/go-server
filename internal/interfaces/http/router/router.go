@@ -30,6 +30,8 @@ func SetupRouter(
 	membershipHandler *handler.MembershipHandler,
 	pgHandler *handler.PaymentGatewayHandler,
 	coinHandler *handler.CoinHandler,
+	productHandler *handler.ProductHandler,
+	webhookHandler *handler.WebhookHandler,
 	log logger.Logger,
 	allowedOrigins []string,
 ) *gin.Engine {
@@ -73,6 +75,8 @@ func SetupRouter(
 		MembershipHandler: membershipHandler,
 		PGHandler:         pgHandler,
 		CoinHandler:       coinHandler,
+		ProductHandler:    productHandler,
+		WebhookHandler:    webhookHandler,
 		Log:               log,
 		AllowedOrigins:    allowedOrigins,
 	}

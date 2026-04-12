@@ -202,6 +202,8 @@ func main() {
 	upgradeRepo      := repositories.NewUpgradeRequestRepository(db)
 	membershipRepo   := repositories.NewMembershipRepository(db)
 	coinRepo         := repositories.NewCoinRepository(db)
+	productRepo      := repositories.NewProductRepository(db)
+	webhookRepo      := repositories.NewWebhookRepository(db)
 
 	// ── Services ──────────────────────────────────────────────
 	authService       := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
@@ -220,6 +222,11 @@ func main() {
 	dashboardService  := service.NewDashboardService(db)
 	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
 	membershipService := service.NewMembershipService(membershipRepo)
+	productService    := service.NewProductService(productRepo)
+	webhookService    := service.NewWebhookService(webhookRepo, service.WebhookConfig{
+		StripeSecret:   os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		RazorpaySecret: os.Getenv("RAZORPAY_WEBHOOK_SECRET"),
+	})
 
 	// ── Handlers ──────────────────────────────────────────────
 	authHandler       := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
@@ -237,6 +244,8 @@ func main() {
 	membershipHandler := handler.NewMembershipHandler(membershipService)
 	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService)
 	coinHandler       := handler.NewCoinHandler(coinService)
+	productHandler    := handler.NewProductHandler(productService)
+	webhookHandler    := handler.NewWebhookHandler(webhookService, log)
 
 	r := router.SetupRouter(
 		userHandler, blogHandler, authHandler, authService,
@@ -244,6 +253,7 @@ func main() {
 		couponHandler, payoutHandler, ticketHandler,
 		dashboardHandler, superadminHandler, uploadHandler,
 		membershipHandler, pgHandler, coinHandler,
+		productHandler, webhookHandler,
 		log, cfg.CORS.AllowedOrigins,
 	)
 

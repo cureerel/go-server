@@ -6,7 +6,7 @@ import (
 	"github.com/cureerel/cserver/pkg/logger"
 )
 
-// Deps aggregates HTTP dependencies for modular route registration.
+
 type Deps struct {
 	AuthService       *service.AuthService
 	UserHandler       *handler.UserHandler
@@ -24,6 +24,8 @@ type Deps struct {
 	MembershipHandler *handler.MembershipHandler
 	PGHandler         *handler.PaymentGatewayHandler
 	CoinHandler       *handler.CoinHandler
+	ProductHandler    *handler.ProductHandler
+	WebhookHandler    *handler.WebhookHandler
 	Log               logger.Logger
 	AllowedOrigins    []string
 }
