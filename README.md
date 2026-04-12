@@ -79,3 +79,15 @@ A modular Go backend for the Cureerel platform. All API routes are prefixed with
 ```bash
 make run
 ```
+
+
+```
+# ayth return 
+{
+  "data": {
+    "access_token": "...",
+    "refresh_token": "...",
+    "expires_at": "..."
+  }
+}
+```

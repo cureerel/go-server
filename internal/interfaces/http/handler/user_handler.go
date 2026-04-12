@@ -158,11 +158,13 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 func toUserResponse(user *entity.User) dto.UserResponse {
 	return dto.UserResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		Role:      user.Role,
-		IsActive:  user.IsActive,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:         user.ID,
+		Name:       user.Name,
+		Email:      user.Email,
+		Role:       user.Role,
+		IsActive:   user.IsActive,
+		IsVerified: user.IsVerified,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }

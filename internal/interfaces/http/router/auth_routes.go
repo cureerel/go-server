@@ -8,6 +8,7 @@ import (
 func registerAuthRoutes(rg *gin.RouterGroup, d *Deps) {
 	auth := rg.Group("/auth")
 	{
+		// Public
 		auth.POST("/register/init", d.AuthHandler.RegisterInit)
 		auth.POST("/register/verify", d.AuthHandler.RegisterVerify)
 		auth.POST("/password/reset/init", d.AuthHandler.PasswordResetInit)
@@ -15,9 +16,10 @@ func registerAuthRoutes(rg *gin.RouterGroup, d *Deps) {
 		auth.POST("/signup", d.AuthHandler.Signup)
 		auth.POST("/login", d.AuthHandler.Login)
 		auth.POST("/refresh", d.AuthHandler.Refresh)
-		
-		// Authenticated logout
+
+		// Authenticated
 		auth.Use(middleware.AuthMiddleware(d.AuthService))
 		auth.POST("/logout", d.AuthHandler.Logout)
+		auth.POST("/password/change", d.AuthHandler.ChangePassword)
 	}
 }

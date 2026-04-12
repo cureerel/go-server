@@ -212,7 +212,8 @@ func main() {
 	otpService        := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
 	userService       := service.NewUserService(userRepo)
 	blogService       := service.NewBlogService(blogRepo, coinRepo, membershipRepo)
-	coinService       := service.NewCoinService(db, coinRepo)
+	membershipService := service.NewMembershipService(membershipRepo)
+	coinService       := service.NewCoinService(db, coinRepo, membershipService)
 	serviceService    := service.NewServiceService(serviceRepo)
 	orderService      := service.NewOrderService(db, orderRepo, serviceRepo, couponRepo, coinRepo)
 	paymentService    := service.NewPaymentService(paymentRepo, orderRepo)
@@ -221,15 +222,15 @@ func main() {
 	ticketService     := service.NewTicketService(ticketRepo)
 	dashboardService  := service.NewDashboardService(db)
 	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
-	membershipService := service.NewMembershipService(membershipRepo)
 	productService    := service.NewProductService(productRepo)
+
 	webhookService    := service.NewWebhookService(webhookRepo, service.WebhookConfig{
 		StripeSecret:   os.Getenv("STRIPE_WEBHOOK_SECRET"),
 		RazorpaySecret: os.Getenv("RAZORPAY_WEBHOOK_SECRET"),
 	})
 
 	// ── Handlers ──────────────────────────────────────────────
-	authHandler       := handler.NewAuthHandler(authService, otpService, cfg.Platform.OTPExpiryMinutes)
+	authHandler       := handler.NewAuthHandler(authService, userService, otpService, cfg.Platform.OTPExpiryMinutes)
 	userHandler       := handler.NewUserHandler(userService)
 	blogHandler       := handler.NewBlogHandler(blogService, coinService)
 	serviceHandler    := handler.NewServiceHandler(serviceService)

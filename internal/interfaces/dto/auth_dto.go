@@ -45,10 +45,20 @@ type LoginRequest struct {
 
 // ── Token responses ───────────────────────────────────────────
 
+// AuthResponse is used for token-only responses (refresh).
 type AuthResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    string `json:"expires_at"`
+}
+
+// LoginResponse is the flat response for login & register/verify.
+// Frontend expects { access_token, refresh_token, user } at the top level.
+type LoginResponse struct {
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
+	ExpiresAt    string       `json:"expires_at"`
+	User         UserResponse `json:"user"`
 }
 
 type RefreshRequest struct {
@@ -59,7 +69,14 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ── Change password (authenticated) ──────────────────────────
 
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password"     binding:"required,min=6"`
+}
+
+// ── Signup (legacy direct) ───────────────────────────────────
 
 type SignupRequest struct {
 	Name     string `json:"name"     binding:"required,min=2,max=100"`

@@ -97,6 +97,15 @@ func (s *UserService) Delete(ctx context.Context, id uint) error {
     return nil
 }
 
+// GetByEmail fetches a user by email
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
+    user, err := s.userRepo.GetByEmail(ctx, email)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to fetch user by email")
+    }
+    return user, nil
+}
+
 // Optional: VerifyPassword compares hashed password
 func (s *UserService) VerifyPassword(user *entity.User, password string) error {
     if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {

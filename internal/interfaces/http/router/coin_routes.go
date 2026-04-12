@@ -10,5 +10,7 @@ func registerCoinRoutes(rg *gin.RouterGroup, d *Deps) {
 	coins.Use(middleware.AuthMiddleware(d.AuthService))
 	{
 		coins.GET("/balance", d.CoinHandler.GetBalance)
+		coins.POST("/purchase-membership", d.CoinHandler.PurchaseMembership)
 	}
 }
+
