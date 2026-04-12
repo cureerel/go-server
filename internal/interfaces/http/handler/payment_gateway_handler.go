@@ -289,17 +289,13 @@ func (h *PaymentGatewayHandler) StripeWebhook(c *gin.Context) {
 		return
 	}
 
-	event, err := stripewebhook.ConstructEvent(
+	event, err := stripewebhook.ConstructEventWithOptions(
 		payload,
 		c.GetHeader("Stripe-Signature"),
 		os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		stripewebhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true},
 	)
 	if err != nil {
-        fmt.Printf("\n[STRIPE WEBHOOK ERROR] Verification failed!\n")
-        fmt.Printf("Error details: %v\n", err)
-        fmt.Printf("Header 'Stripe-Signature': %v\n", c.GetHeader("Stripe-Signature"))
-        fmt.Printf("Env STRIPE_WEBHOOK_SECRET: %v\n", os.Getenv("STRIPE_WEBHOOK_SECRET"))
-        fmt.Printf("Payload size read: %d bytes\n\n", len(payload))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "webhook signature verification failed", "details": err.Error()})
 		return
 	}

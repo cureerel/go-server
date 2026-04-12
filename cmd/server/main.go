@@ -22,6 +22,7 @@ import (
 	"github.com/cureerel/cserver/internal/interfaces/http/handler"
 	"github.com/cureerel/cserver/internal/interfaces/http/router"
 	"github.com/cureerel/cserver/pkg/logger"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres/models"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
@@ -162,6 +163,17 @@ func main() {
 	}
 	defer dbClient.Close()
 	db := dbClient.GormDB().(*gorm.DB)
+
+	// Inject auto-migration for newly added coin tables
+	// to prevent 500 errors if Atlas is not installed.
+	err = db.AutoMigrate(
+		&models.UserWallet{}, 
+		&models.CoinLedger{},
+		&models.BlogUnlock{},
+	)
+	if err != nil {
+		log.Error("AutoMigrate failed", logger.Field{Key: "error", Value: err})
+	}
 
 	var emailClient emailinfra.Provider
 	if cfg.Email.ResendAPIKey != "" {
