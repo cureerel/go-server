@@ -30,16 +30,28 @@ func (s *MembershipService) Activate(ctx context.Context, userID uint, plan enti
         return nil, errors.New("invalid membership plan")
     }
 
-    // Check if user already has active membership
+    now := time.Now()
+
+    // Check if user already has a membership record
     existing, err := s.membershipRepo.GetByUserID(ctx, userID)
     if err != nil {
         return nil, err
     }
-    if existing != nil && existing.IsActive() {
-        return nil, errors.New("user already has an active membership")
+
+    if existing != nil {
+        // Renew or upgrade: extend/reset expiry and update plan
+        existing.Plan      = plan
+        existing.Status    = entity.MembershipActive
+        existing.StartsAt  = now
+        existing.ExpiresAt = now.Add(duration)
+        existing.UpdatedAt = now
+        if err := s.membershipRepo.Update(ctx, existing); err != nil {
+            return nil, err
+        }
+        return existing, nil
     }
 
-    now := time.Now()
+    // No existing record — create fresh
     membership := &entity.Membership{
         UserID:    userID,
         Plan:      plan,
@@ -49,7 +61,6 @@ func (s *MembershipService) Activate(ctx context.Context, userID uint, plan enti
         CreatedAt: now,
         UpdatedAt: now,
     }
-
     if err := s.membershipRepo.Create(ctx, membership); err != nil {
         return nil, err
     }

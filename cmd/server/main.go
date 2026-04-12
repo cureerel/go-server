@@ -255,7 +255,7 @@ func main() {
 	superadminHandler := handler.NewSuperAdminHandler(superAdminService)
 	uploadHandler     := handler.NewUploadHandler(storageClient)
 	membershipHandler := handler.NewMembershipHandler(membershipService)
-	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService)
+	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService, paymentService)
 	coinHandler       := handler.NewCoinHandler(coinService)
 	productHandler    := handler.NewProductHandler(productService)
 	webhookHandler    := handler.NewWebhookHandler(webhookService, log)
