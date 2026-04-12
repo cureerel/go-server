@@ -2,28 +2,36 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
 	authService *service.AuthService
+	userService *service.UserService
 	otpService  *service.OTPService
 	otpExpiry   int // minutes, for response hint
 }
 
-func NewAuthHandler(authService *service.AuthService, otpService *service.OTPService, otpExpiry int) *AuthHandler {
+func NewAuthHandler(
+	authService *service.AuthService,
+	userService *service.UserService,
+	otpService *service.OTPService,
+	otpExpiry int,
+) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		userService: userService,
 		otpService:  otpService,
 		otpExpiry:   otpExpiry,
 	}
 }
-
 
 func (h *AuthHandler) RegisterInit(c *gin.Context) {
 	var req dto.RegisterInitRequest
@@ -47,7 +55,7 @@ func (h *AuthHandler) RegisterInit(c *gin.Context) {
 
 // RegisterVerify godoc
 // POST /api/auth/register/verify
-// Verifies OTP + creates user + returns tokens. Second step of registration.
+// Verifies OTP + creates user + returns tokens (flat response).
 func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 	var req dto.RegisterVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,18 +95,13 @@ func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 		return
 	}
 
+	// FLAT response: { data: { access_token, refresh_token, expires_at, user } }
 	c.JSON(http.StatusCreated, gin.H{
-		"data": gin.H{
-			"user": dto.SignupResponse{
-				ID:    user.ID,
-				Name:  user.Name,
-				Email: user.Email,
-			},
-			"tokens": dto.AuthResponse{
-				AccessToken:  token.AccessToken,
-				RefreshToken: token.RefreshToken,
-				ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
-			},
+		"data": dto.LoginResponse{
+			AccessToken:  token.AccessToken,
+			RefreshToken: token.RefreshToken,
+			ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
+			User:         toUserResponse(user),
 		},
 	})
 }
@@ -142,7 +145,38 @@ func (h *AuthHandler) PasswordResetVerify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully. Please log in."})
 }
 
-// ── Existing handlers (unchanged) ────────────────────────────
+// ── Change Password (authenticated) ──────────────────────────
+
+// ChangePassword godoc
+// POST /api/auth/password/change
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req dto.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	id, err := strconv.ParseUint(fmt.Sprintf("%v", userID), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.authService.ChangePassword(c.Request.Context(), uint(id), req.CurrentPassword, req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully."})
+}
+
+// ── Existing handlers ────────────────────────────────────────
 
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
@@ -179,11 +213,28 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Fetch user to include in login response
+	user, err := h.userService.GetByEmail(c.Request.Context(), req.Email)
+	if err != nil || user == nil {
+		// Fallback: return tokens without user (frontend will call getMe)
+		c.JSON(http.StatusOK, gin.H{
+			"data": dto.AuthResponse{
+				AccessToken:  token.AccessToken,
+				RefreshToken: token.RefreshToken,
+				ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
+			},
+		})
+		return
+	}
+
+	// FLAT response: { data: { access_token, refresh_token, expires_at, user } }
 	c.JSON(http.StatusOK, gin.H{
-		"data": dto.AuthResponse{
+		"data": dto.LoginResponse{
 			AccessToken:  token.AccessToken,
 			RefreshToken: token.RefreshToken,
 			ExpiresAt:    token.ExpiresAt.Format(time.RFC3339),
+			User:         toUserResponse(user),
 		},
 	})
 }

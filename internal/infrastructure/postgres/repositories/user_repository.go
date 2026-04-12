@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/internal/infrastructure/postgres/models"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres/models"
 	"gorm.io/gorm"
 )
 

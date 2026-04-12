@@ -5,9 +5,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/pkg/apperror"
 )
 
 type CouponService struct {

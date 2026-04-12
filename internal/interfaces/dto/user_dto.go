@@ -12,11 +12,13 @@ type UpdateUserRequest struct {
 }
 
 type UserResponse struct {
-	ID        uint   `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	IsActive  bool   `json:"is_active"`
-	CreatedAt string `json:"created_at"`
+	ID         uint   `json:"id"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	IsActive   bool   `json:"is_active"`
+	IsVerified bool   `json:"is_verified"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 

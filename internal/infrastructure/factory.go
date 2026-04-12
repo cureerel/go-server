@@ -3,9 +3,9 @@ package infrastructure
 import (
     "fmt"
 
-    "github.com/cureerel/gotemplate/internal/infrastructure/dbtypes"
-    "github.com/cureerel/gotemplate/internal/infrastructure/postgres"
-    redisclient "github.com/cureerel/gotemplate/internal/infrastructure/redis"
+    "github.com/cureerel/cserver/internal/infrastructure/dbtypes"
+    "github.com/cureerel/cserver/internal/infrastructure/postgres"
+    redisclient "github.com/cureerel/cserver/internal/infrastructure/redis"
 )
 
 type DBConfig struct {

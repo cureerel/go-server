@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	storageinfra "github.com/cureerel/gotemplate/internal/infrastructure/storage"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	storageinfra "github.com/cureerel/cserver/internal/infrastructure/storage"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"github.com/gin-gonic/gin"
 )
 

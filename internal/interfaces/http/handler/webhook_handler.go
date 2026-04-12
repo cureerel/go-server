@@ -4,8 +4,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/pkg/logger"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 

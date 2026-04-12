@@ -4,9 +4,9 @@ package service
 import (
 	"context"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"gorm.io/gorm"
 )
 
@@ -191,10 +191,11 @@ func (s *SuperAdminService) PlatformStats(ctx context.Context) (*PlatformStats, 
 var roleRankMap = map[string]int{
 	entity.RoleUser:       1,
 	entity.RoleWriter:     2,
-	entity.RolePartner:    3,
-	entity.RoleWorker:     4,
-	entity.RoleAdmin:      5,
-	entity.RoleSuperAdmin: 6,
+	entity.RoleReviewer:   3,
+	entity.RolePartner:    4,
+	entity.RoleWorker:     5,
+	entity.RoleAdmin:      6,
+	entity.RoleSuperAdmin: 7,
 }
 
 func validRole(r string) bool {
@@ -204,7 +205,7 @@ func validRole(r string) bool {
 
 func upgradableRole(r string) bool {
 	switch r {
-	case entity.RoleWriter, entity.RolePartner, entity.RoleWorker, entity.RoleAdmin:
+	case entity.RoleWriter, entity.RoleReviewer, entity.RolePartner, entity.RoleWorker, entity.RoleAdmin:
 		return true
 	}
 	return false

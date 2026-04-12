@@ -4,7 +4,7 @@ package repository
 import (
 	"context"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/entity"
 )
 
 type PaymentFilter struct {

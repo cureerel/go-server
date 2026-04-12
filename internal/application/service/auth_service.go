@@ -16,9 +16,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -326,4 +326,37 @@ func (s *AuthService) ValidateAccessToken(tokenString string) (*entity.Claims, e
 		Email:  email,
 		Role:   role,
 	}, nil
+}
+
+// ChangePassword verifies the current password and updates to a new one.
+func (s *AuthService) ChangePassword(ctx context.Context, userID uint, currentPassword, newPassword string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return apperror.NewBadRequest("user not found")
+	}
+
+	// Check which field has the hash
+	hash := user.PasswordHash
+	if hash == "" {
+		hash = user.Password
+	}
+	if hash == "" {
+		return apperror.NewInternal(nil, "no password hash stored")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)); err != nil {
+		return apperror.NewBadRequest("current password is incorrect")
+	}
+
+	newHash, err := hashPassword(newPassword)
+	if err != nil {
+		return apperror.NewInternal(err, "failed to hash new password")
+	}
+
+	user.PasswordHash = newHash
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return apperror.NewInternal(err, "failed to update password")
+	}
+
+	return nil
 }

@@ -3,28 +3,36 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/domain/repository"
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/domain/repository"
+	"github.com/cureerel/cserver/pkg/apperror"
+	"gorm.io/gorm"
 )
 
 type OrderService struct {
+	db          *gorm.DB
 	orderRepo   repository.OrderRepository
 	serviceRepo repository.ServiceRepository
 	couponRepo  repository.CouponRepository
+	coinRepo    repository.CoinRepository
 }
 
 func NewOrderService(
+	db *gorm.DB,
 	orderRepo repository.OrderRepository,
 	serviceRepo repository.ServiceRepository,
 	couponRepo repository.CouponRepository,
+	coinRepo repository.CoinRepository,
 ) *OrderService {
 	return &OrderService{
+		db:          db,
 		orderRepo:   orderRepo,
 		serviceRepo: serviceRepo,
 		couponRepo:  couponRepo,
+		coinRepo:    coinRepo,
 	}
 }
 
@@ -33,7 +41,6 @@ type CreateOrderInput struct {
 	ServiceID   uint
 	CouponCode  string
 	AffiliateID *uint
-	Provider    string
 }
 
 func (s *OrderService) Create(ctx context.Context, in CreateOrderInput) (*entity.Order, error) {
@@ -51,7 +58,6 @@ func (s *OrderService) Create(ctx context.Context, in CreateOrderInput) (*entity
 	serviceID := in.ServiceID
 	totalCents := svc.PriceUSDCents
 
-	// Resolve coupon if provided
 	var couponID *uint
 	if in.CouponCode != "" {
 		c, err := s.couponRepo.GetByCode(ctx, in.CouponCode)
@@ -66,16 +72,20 @@ func (s *OrderService) Create(ctx context.Context, in CreateOrderInput) (*entity
 			}
 			couponID = &c.ID
 		}
-		// Invalid/expired coupon is silently ignored — don't block checkout
+	}
+
+	coinCost := totalCents
+	if coinCost <= 0 {
+		return nil, apperror.NewBadRequest("nothing to pay — order total is zero")
 	}
 
 	order := &entity.Order{
 		UserID:          in.UserID,
 		ServiceID:       &serviceID,
-		Status:          entity.OrderPending,
+		Status:          entity.OrderCompleted,
 		TotalCents:      totalCents,
 		Currency:        "USD",
-		PaymentProvider: in.Provider,
+		PaymentProvider: string(entity.ProviderCoins),
 		CouponID:        couponID,
 		AffiliateID:     in.AffiliateID,
 		Items: []entity.OrderItem{
@@ -88,8 +98,19 @@ func (s *OrderService) Create(ctx context.Context, in CreateOrderInput) (*entity
 		},
 	}
 
-	if err := s.orderRepo.Create(ctx, order); err != nil {
-		return nil, apperror.NewInternal(err, "failed to create order")
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		refID := serviceID
+		_, err := s.coinRepo.Debit(ctx, tx, in.UserID, coinCost, "service_purchase", "service", &refID)
+		if err != nil {
+			return err
+		}
+		return s.orderRepo.CreateWithTx(ctx, tx, order)
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrInsufficientCoins) {
+			return nil, apperror.NewBadRequest("insufficient coins — top up your wallet first")
+		}
+		return nil, apperror.NewInternal(err, "failed to place order")
 	}
 	return order, nil
 }

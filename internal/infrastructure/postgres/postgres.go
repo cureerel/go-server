@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cureerel/gotemplate/internal/infrastructure/dbtypes"
+	"github.com/cureerel/cserver/internal/infrastructure/dbtypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

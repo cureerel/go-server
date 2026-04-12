@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/gin-gonic/gin"
 )
 

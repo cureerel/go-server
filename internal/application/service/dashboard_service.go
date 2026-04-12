@@ -4,7 +4,7 @@ package service
 import (
 	"context"
 
-	"github.com/cureerel/gotemplate/pkg/apperror"
+	"github.com/cureerel/cserver/pkg/apperror"
 	"gorm.io/gorm"
 )
 

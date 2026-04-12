@@ -3,7 +3,7 @@ package middleware
 import (
 	"time"
 	"github.com/gin-gonic/gin"
-	"github.com/cureerel/gotemplate/pkg/logger"
+	"github.com/cureerel/cserver/pkg/logger"
 )
 
 func Logger(log logger.Logger) gin.HandlerFunc {

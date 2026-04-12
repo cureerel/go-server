@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
@@ -158,11 +158,13 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 func toUserResponse(user *entity.User) dto.UserResponse {
 	return dto.UserResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		Role:      user.Role,
-		IsActive:  user.IsActive,
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:         user.ID,
+		Name:       user.Name,
+		Email:      user.Email,
+		Role:       user.Role,
+		IsActive:   user.IsActive,
+		IsVerified: user.IsVerified,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:  user.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }

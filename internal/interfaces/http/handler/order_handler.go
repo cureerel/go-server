@@ -4,19 +4,18 @@ package handler
 import (
 	"net/http"
 
-	"github.com/cureerel/gotemplate/internal/application/service"
-	"github.com/cureerel/gotemplate/internal/domain/entity"
-	"github.com/cureerel/gotemplate/internal/interfaces/dto"
+	"github.com/cureerel/cserver/internal/application/service"
+	"github.com/cureerel/cserver/internal/domain/entity"
+	"github.com/cureerel/cserver/internal/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 type OrderHandler struct {
-	orderSvc   *service.OrderService
-	paymentSvc *service.PaymentService
+	orderSvc *service.OrderService
 }
 
-func NewOrderHandler(orderSvc *service.OrderService, paymentSvc *service.PaymentService) *OrderHandler {
-	return &OrderHandler{orderSvc: orderSvc, paymentSvc: paymentSvc}
+func NewOrderHandler(orderSvc *service.OrderService) *OrderHandler {
+	return &OrderHandler{orderSvc: orderSvc}
 }
 
 // POST /api/orders — any authenticated user
@@ -35,32 +34,15 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	order, err := h.orderSvc.Create(c.Request.Context(), service.CreateOrderInput{
 		UserID:      uid,
 		ServiceID:   req.ServiceID,
-		Provider:    req.Provider,
 		AffiliateID: req.AffiliateID,
-		// CouponID resolved in a later phase (phase 7 coupons)
 	})
 	if err != nil {
 		respondErr(c, err)
 		return
 	}
 
-	// Create pending payment record immediately after order
-	userEmail, _ := c.Get("email")
-	email, _ := userEmail.(string)
-	payment, err := h.paymentSvc.InitPayment(
-		c.Request.Context(),
-		order,
-		entity.PaymentProvider(req.Provider),
-		email,
-	)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-
 	respondCreated(c, gin.H{
-		"order":   toOrderResponse(order),
-		"payment": toPaymentResponse(payment),
+		"order": toOrderResponse(order),
 	})
 }
 

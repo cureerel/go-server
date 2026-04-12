@@ -5,9 +5,9 @@ import (
 
     "golang.org/x/crypto/bcrypt"
 
-    "github.com/cureerel/gotemplate/internal/domain/entity"
-    "github.com/cureerel/gotemplate/internal/domain/repository"
-    "github.com/cureerel/gotemplate/pkg/apperror"
+    "github.com/cureerel/cserver/internal/domain/entity"
+    "github.com/cureerel/cserver/internal/domain/repository"
+    "github.com/cureerel/cserver/pkg/apperror"
 )
 
 type UserService struct {
@@ -95,6 +95,15 @@ func (s *UserService) Delete(ctx context.Context, id uint) error {
         return apperror.NewInternal(err, "failed to delete user")
     }
     return nil
+}
+
+// GetByEmail fetches a user by email
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
+    user, err := s.userRepo.GetByEmail(ctx, email)
+    if err != nil {
+        return nil, apperror.NewInternal(err, "failed to fetch user by email")
+    }
+    return user, nil
 }
 
 // Optional: VerifyPassword compares hashed password

@@ -1,4 +1,4 @@
-module github.com/cureerel/gotemplate
+module github.com/cureerel/cserver
 
 go 1.25.6
 
