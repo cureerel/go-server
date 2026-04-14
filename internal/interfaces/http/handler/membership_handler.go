@@ -19,7 +19,7 @@ func NewMembershipHandler(membershipService *service.MembershipService) *Members
 	return &MembershipHandler{membershipService: membershipService}
 }
 
-// ----------------- Requests -----------------
+// Requests
 
 type activateMembershipRequest struct {
 	Plan entity.MembershipPlan `json:"plan" binding:"required"`
