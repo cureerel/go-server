@@ -83,33 +83,6 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
 }
 
-// PUT /users/:id
-func (h *UserHandler) UpdateUser(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	var req dto.UpdateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	user, err := h.userService.Update(
-    c.Request.Context(),
-    uint(id),
-    &req.Name,  
-    &req.Email, 
-)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
-}
 
 // DELETE /users/:id
 func (h *UserHandler) DeleteUser(c *gin.Context) {
@@ -154,7 +127,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
 }
 
-// ---------------- Helper ----------------
+// Helper
 
 func toUserResponse(user *entity.User) dto.UserResponse {
 	return dto.UserResponse{

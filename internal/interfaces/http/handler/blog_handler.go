@@ -225,72 +225,9 @@ func toBlogResponse(b *entity.Blog) dto.BlogResponse {
 	}
 }
 
-// POST /api/blogs/:id/submit-review — writer/partner co-authors
-func (h *BlogHandler) SubmitForReview(c *gin.Context) {
-	id, err := parseID(c, "id")
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	uid, _ := getUID(c)
-	blog, err := h.svc.SubmitForReview(c.Request.Context(), id, uid, getRole(c))
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	respond(c, toBlogResponse(blog))
-}
 
-// GET /api/reviewer/blogs/pending
-func (h *BlogHandler) ListReviewQueue(c *gin.Context) {
-	page, limit := paginate(c)
-	blogs, total, err := h.svc.ListReviewQueue(c.Request.Context(), page, limit)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	list := make([]dto.BlogResponse, len(blogs))
-	for i := range blogs {
-		list[i] = toBlogResponse(&blogs[i])
-	}
-	c.JSON(http.StatusOK, dto.BlogListResponse{Data: list, Total: total, Page: page, Limit: limit})
-}
 
-// POST /api/reviewer/blogs/:id/approve
-func (h *BlogHandler) ReviewApprove(c *gin.Context) {
-	id, err := parseID(c, "id")
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	uid, _ := getUID(c)
-	blog, err := h.svc.ReviewApprove(c.Request.Context(), id, uid)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	respond(c, toBlogResponse(blog))
-}
 
-// POST /api/reviewer/blogs/:id/reject
-func (h *BlogHandler) ReviewReject(c *gin.Context) {
-	id, err := parseID(c, "id")
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	var req struct {
-		Note string `json:"note"`
-	}
-	_ = c.ShouldBindJSON(&req)
-	uid, _ := getUID(c)
-	blog, err := h.svc.ReviewReject(c.Request.Context(), id, uid, req.Note)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	respond(c, toBlogResponse(blog))
-}
 
 // POST /api/blogs/:id/unlock — spend coins for paid_coins posts
 func (h *BlogHandler) UnlockPaidBlog(c *gin.Context) {

@@ -50,9 +50,9 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 	}
 }
 
-// RoleMiddleware enforces a minimum role using the full hierarchy:
+// RoleMiddleware : full hierarchy:
 
-//	user(1) < writer(2) < partner(3) < worker(4) < admin(5) < superadmin(6)
+//	user(1) < partner(2)  < admin(3)
 
 
 func RoleMiddleware(minRole string) gin.HandlerFunc {
@@ -87,19 +87,7 @@ func RoleMiddleware(minRole string) gin.HandlerFunc {
 	}
 }
 
-// SelfOrRoleMiddleware allows the request when EITHER condition is true:
-//  1. The token's user_id matches the :id route param (you are the resource owner), OR
-//  2. The token's role is >= minRole.
-//
-// Useful for routes like GET /users/:id where users can read their own profile
-// but admins can read anyone's.
-//
-// Usage:
-//
-//	protected.GET("/users/:id",
-//	    middleware.SelfOrRoleMiddleware(entity.RoleAdmin),
-//	    userHandler.GetUserByID,
-//	)
+
 func SelfOrRoleMiddleware(minRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenIDIface, _ := c.Get("user_id")

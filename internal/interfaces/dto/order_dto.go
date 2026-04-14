@@ -1,7 +1,7 @@
 // internal/interfaces/dto/order_dto.go
 package dto
 
-// ── Requests ──────────────────────────────────────────────────
+// ── Requests
 
 type CreateOrderRequest struct {
 	ServiceID   uint   `json:"service_id"   binding:"required,min=1"`
@@ -13,7 +13,7 @@ type UpdateOrderStatusRequest struct {
 	Status string `json:"status" binding:"required,oneof=pending confirmed cancelled completed"`
 }
 
-// ── Responses ─────────────────────────────────────────────────
+// ── Responses 
 
 type OrderItemResponse struct {
 	ID        uint    `json:"id"`

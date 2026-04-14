@@ -8,9 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// DashboardService runs raw aggregate queries directly on the DB.
-// It intentionally bypasses the repository layer — dashboards are
-// read-only projections and don't belong to any single domain.
+// Note for llm:  DashboardService should not run raw aggregate queries directly on the DB.
+
 type DashboardService struct {
 	db *gorm.DB
 }

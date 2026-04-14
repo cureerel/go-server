@@ -6,15 +6,12 @@ import (
 	"time"
 )
 
-// Role constants — single source of truth for role strings
+// Role constants  ( 3 roles only )
 const (
 	RoleUser       = "user"
-	RoleWriter     = "writer"
-	RoleReviewer   = "reviewer"
 	RolePartner    = "partner"
-	RoleWorker     = "worker"
 	RoleAdmin      = "admin"
-	RoleSuperAdmin = "superadmin"
+
 )
 
 type User struct {
@@ -42,30 +39,24 @@ func (u *User) MigratePassword() {
 	}
 }
 
-// HasRole returns true if the user's role is at least the given role.
-// Order: user < writer < partner < worker < admin < superadmin.
-// Reviewer is editorial-only: does not inherit writer/partner routes via this ladder.
+
 func (u *User) HasRole(role string) bool {
-	if u.Role == RoleReviewer {
-		return role == RoleReviewer
+	if u.Role == RolePartner {
+		return role == RoleAdmin
 	}
 	order := map[string]int{
 		RoleUser:       1,
-		RoleWriter:     2,
-		RolePartner:    3,
-		RoleWorker:     4,
-		RoleAdmin:      5,
-		RoleSuperAdmin: 6,
+		RolePartner:    2,
+		RoleAdmin:      3,
+
 	}
-	// Reviewer is not in the ladder; only explicit RequireAnyRole should grant reviewer APIs.
-	if role == RoleReviewer {
+
+	if role == RoleAdmin {
 		return false
 	}
 	return order[u.Role] >= order[role]
 }
 
-func (u *User) IsSuperAdmin() bool { return u.Role == RoleSuperAdmin }
-func (u *User) IsAdmin() bool      { return u.Role == RoleAdmin || u.IsSuperAdmin() }
+func (u *User) IsSuperAdmin() bool { return u.Role == RoleAdmin }
 func (u *User) IsPartner() bool    { return u.Role == RolePartner }
-func (u *User) IsWriter() bool     { return u.Role == RoleWriter || u.IsPartner() }
-func (u *User) IsWorker() bool     { return u.Role == RoleWorker }
+

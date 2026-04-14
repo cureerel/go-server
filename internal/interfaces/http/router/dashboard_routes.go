@@ -12,10 +12,6 @@ func registerDashboardRoutes(rg *gin.RouterGroup, d *Deps) {
 	{
 		dash.GET("", d.DashboardHandler.Get)
 		dash.GET("/user", d.DashboardHandler.UserView)
-		
-		dash.GET("/writer", middleware.WriterContent(), d.DashboardHandler.WriterView)
-		dash.GET("/partner", middleware.RoleMiddleware(entity.RolePartner), d.DashboardHandler.PartnerView)
-		dash.GET("/worker", middleware.RoleMiddleware(entity.RoleWorker), d.DashboardHandler.WorkerView)
 		dash.GET("/admin", middleware.RoleMiddleware(entity.RoleAdmin), d.DashboardHandler.AdminView)
 	}
 }

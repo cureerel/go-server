@@ -46,7 +46,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	})
 }
 
-// GET /api/orders/me — any authenticated user
+// GET /api/orders/me —  authenticated user
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 	uid, _ := getUID(c)
 	page, limit := paginate(c)
@@ -82,7 +82,7 @@ func (h *OrderHandler) GetByID(c *gin.Context) {
 	respond(c, toOrderResponse(order))
 }
 
-// GET /api/orders — admin+
+// GET /api/orders — admin
 func (h *OrderHandler) GetAll(c *gin.Context) {
 	page, limit := paginate(c)
 	status := c.Query("status")
@@ -98,7 +98,7 @@ func (h *OrderHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.OrderListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// PATCH /api/orders/:id/status — admin+
+// PATCH /api/orders/:id/status — admin
 func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -117,7 +117,7 @@ func (h *OrderHandler) UpdateStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "order status updated"})
 }
 
-// ── mapper ────────────────────────────────────────────────────
+// mapper
 
 func toOrderResponse(o *entity.Order) dto.OrderResponse {
 	items := make([]dto.OrderItemResponse, len(o.Items))

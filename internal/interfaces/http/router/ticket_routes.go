@@ -19,10 +19,9 @@ func registerTicketRoutes(rg *gin.RouterGroup, d *Deps) {
 
 		// Worker operations
 		worker := tickets.Group("")
-		worker.Use(middleware.RoleMiddleware(entity.RoleWorker))
+		worker.Use(middleware.RoleMiddleware(entity.RolePartner))
 		{
 			worker.GET("", d.TicketHandler.GetAll)
-			worker.POST("/:id/assign", d.TicketHandler.Assign)
 			worker.POST("/:id/resolve", d.TicketHandler.Resolve)
 		}
 	}

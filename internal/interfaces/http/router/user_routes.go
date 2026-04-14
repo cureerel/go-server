@@ -19,7 +19,6 @@ func registerUserRoutes(rg *gin.RouterGroup, d *Deps) {
 			admin.GET("", d.UserHandler.GetAllUsers)
 			admin.GET("/:id", d.UserHandler.GetUserByID)
 			admin.POST("", d.UserHandler.CreateUser)
-			admin.PUT("/:id", d.UserHandler.UpdateUser)
 			admin.DELETE("/:id", d.UserHandler.DeleteUser)
 		}
 	}

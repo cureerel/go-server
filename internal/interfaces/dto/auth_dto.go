@@ -1,7 +1,7 @@
 // internal/interfaces/dto/auth_dto.go
 package dto
 
-// ── Registration (2-step OTP flow) ───────────────────────────
+//  Registration (2-step OTP flow)
 
 type RegisterInitRequest struct {
 	Email string `json:"email" binding:"required,email"`
@@ -36,14 +36,14 @@ type PasswordResetVerifyRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
-// ── Login ─────────────────────────────────────────────────────
+//  Login
 
 type LoginRequest struct {
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
-// ── Token responses ───────────────────────────────────────────
+//  Token response
 
 // AuthResponse is used for token-only responses (refresh).
 type AuthResponse struct {
@@ -69,14 +69,14 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
-// ── Change password (authenticated) ──────────────────────────
+// ── Change password (authenticated)
 
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password"     binding:"required,min=6"`
 }
 
-// ── Signup (legacy direct) ───────────────────────────────────
+// ── Signup 
 
 type SignupRequest struct {
 	Name     string `json:"name"     binding:"required,min=2,max=100"`

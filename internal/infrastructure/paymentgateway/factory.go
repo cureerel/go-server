@@ -14,7 +14,7 @@ type Factory struct {
 	Region Region
 }
 
-// FromEnv reads PAYMENT_REGION (IN|GLOBAL, default GLOBAL) and optional PAYMENT_TOPUP_PROVIDER override.
+// 
 func FromEnv() *Factory {
 	r := RegionGlobal
 	if v := os.Getenv("PAYMENT_REGION"); v == "IN" {

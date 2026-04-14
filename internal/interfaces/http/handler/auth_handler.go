@@ -106,7 +106,7 @@ func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 	})
 }
 
-// ── Password Reset ────────────────────────────────────────────
+// ── Password Reset 
 
 // PasswordResetInit godoc
 // POST /api/auth/password/reset/init
@@ -145,7 +145,7 @@ func (h *AuthHandler) PasswordResetVerify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully. Please log in."})
 }
 
-// ── Change Password (authenticated) ──────────────────────────
+// ── Change Password (authenticated) 
 
 // ChangePassword godoc
 // POST /api/auth/password/change
@@ -176,7 +176,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully."})
 }
 
-// ── Existing handlers ────────────────────────────────────────
+//  Existing handlers 
 
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest

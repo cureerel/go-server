@@ -18,7 +18,7 @@ func NewTicketHandler(svc *service.TicketService) *TicketHandler {
 	return &TicketHandler{svc: svc}
 }
 
-// POST /api/tickets — any authenticated user
+// POST /api/tickets —  authenticated user
 func (h *TicketHandler) Create(c *gin.Context) {
 	var req dto.CreateTicketRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -56,27 +56,9 @@ func (h *TicketHandler) GetMine(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.TicketListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// GET /api/tickets/:id — owner or worker+
-func (h *TicketHandler) GetByID(c *gin.Context) {
-	id, err := parseID(c, "id")
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	ticket, err := h.svc.GetByID(c.Request.Context(), id)
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	uid, _ := getUID(c)
-	if ticket.UserID != uid && !hasRole(c, entity.RoleWorker) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		return
-	}
-	respond(c, toTicketResponse(ticket))
-}
 
-// GET /api/tickets — worker+
+
+// GET /api/tickets — 
 func (h *TicketHandler) GetAll(c *gin.Context) {
 	page, limit := paginate(c)
 	status := c.Query("status")
@@ -93,26 +75,9 @@ func (h *TicketHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.TicketListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// POST /api/tickets/:id/assign — worker+
-func (h *TicketHandler) Assign(c *gin.Context) {
-	id, err := parseID(c, "id")
-	if err != nil {
-		respondErr(c, err)
-		return
-	}
-	var req dto.AssignTicketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.svc.Assign(c.Request.Context(), id, req.WorkerID); err != nil {
-		respondErr(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "ticket assigned"})
-}
 
-// POST /api/tickets/:id/resolve — worker+
+
+// POST /api/tickets/:id/resolve
 func (h *TicketHandler) Resolve(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -141,7 +106,7 @@ func (h *TicketHandler) Close(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ticket closed"})
 }
 
-// POST /api/tickets/:id/messages — owner or worker+
+// POST /api/tickets/:id/messages — owner or admin
 func (h *TicketHandler) SendMessage(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -162,7 +127,7 @@ func (h *TicketHandler) SendMessage(c *gin.Context) {
 	respondCreated(c, toMessageResponse(msg))
 }
 
-// GET /api/tickets/:id/messages — owner or worker+
+// GET /api/tickets/:id/messages — owner or admin
 func (h *TicketHandler) GetMessages(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
@@ -182,7 +147,7 @@ func (h *TicketHandler) GetMessages(c *gin.Context) {
 	respond(c, list)
 }
 
-// ── mappers ───────────────────────────────────────────────────
+// mappers 
 
 func toTicketResponse(t *entity.Ticket) dto.TicketResponse {
 	r := dto.TicketResponse{

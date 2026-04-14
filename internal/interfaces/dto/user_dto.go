@@ -6,10 +6,6 @@ type CreateUserRequest struct {
 	Password string `json:"password" binding:"required,min=6"`
 }
 
-type UpdateUserRequest struct {
-	Name  string `json:"name" binding:"omitempty,min=2,max=100"`
-	Email string `json:"email" binding:"omitempty,email"`
-}
 
 type UserResponse struct {
 	ID         uint   `json:"id"`

@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
-	"time"
+
 
 	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/cureerel/cserver/internal/domain/repository"
@@ -32,7 +32,7 @@ func NewBlogService(
 	}
 }
 
-// ── Input types ───────────────────────────────────────────────
+// Input types 
 
 type CreateBlogInput struct {
 	Title         string
@@ -54,7 +54,7 @@ type UpdateBlogInput struct {
 	CallerRole    string
 	Title         *string
 	Content       *string
-	Excerpt       *string // ← added
+	Excerpt       *string 
 	Status        *string
 	Tags          *string
 	CoverImageURL *string
@@ -241,7 +241,7 @@ func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole 
 	return s.blogRepo.Delete(ctx, id)
 }
 
-// ── Analytics ─────────────────────────────────────────────────
+//  Analytics
 
 func (s *BlogService) RecordView(ctx context.Context, blogID uint, ip, ua string) error {
 	raw := fmt.Sprintf("%s|%s", ip, ua)
@@ -262,8 +262,7 @@ func (s *BlogService) GetStats(ctx context.Context, blogID uint) (int64, error) 
 	return blog.ViewsTotal, nil
 }
 
-// ── helpers ───────────────────────────────────────────────────
-
+// ── helpers
 func validBlogStatus(s string) bool {
 	switch s {
 	case "draft", "in_review", "published", "rejected", "archived":
@@ -272,7 +271,7 @@ func validBlogStatus(s string) bool {
 	return false
 }
 
-// GetBySlugForReader returns published posts; masks body when access rules block the viewer.
+// GetBySlugForReader 
 func (s *BlogService) GetBySlugForReader(ctx context.Context, slug string, viewerID *uint) (*entity.Blog, error) {
 	blog, err := s.blogRepo.GetBySlug(ctx, slug)
 	if err != nil {
@@ -332,79 +331,4 @@ func (s *BlogService) canReadFullContent(ctx context.Context, b *entity.Blog, vi
 	default:
 		return false
 	}
-}
-
-// SubmitForReview moves draft/rejected → in_review.
-func (s *BlogService) SubmitForReview(ctx context.Context, blogID, callerID uint, callerRole string) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetByID(ctx, blogID)
-	if err != nil || blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	caller := &entity.User{ID: callerID, Role: callerRole}
-	can, err := s.blogRepo.UserCanEditBlog(ctx, blogID, callerID)
-	if err != nil {
-		return nil, apperror.NewInternal(err, "failed to check blog access")
-	}
-	if !can && !caller.HasRole(entity.RoleAdmin) {
-		return nil, apperror.NewForbidden("forbidden")
-	}
-	if blog.Status != entity.BlogDraft && blog.Status != entity.BlogRejected {
-		return nil, apperror.NewBadRequest("only draft or rejected posts can be submitted")
-	}
-	now := time.Now().UTC()
-	blog.Status = entity.BlogInReview
-	blog.SubmittedForReviewAt = &now
-	if err := s.blogRepo.Update(ctx, blog); err != nil {
-		return nil, apperror.NewInternal(err, "failed to update blog")
-	}
-	return blog, nil
-}
-
-// ReviewApprove publishes an in_review post (reviewer/admin/superadmin).
-func (s *BlogService) ReviewApprove(ctx context.Context, blogID, reviewerID uint) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetByID(ctx, blogID)
-	if err != nil || blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	if blog.Status != entity.BlogInReview {
-		return nil, apperror.NewBadRequest("post is not awaiting review")
-	}
-	now := time.Now().UTC()
-	blog.Status = entity.BlogPublished
-	blog.PublishedAt = &now
-	blog.ReviewedByID = &reviewerID
-	blog.ReviewNote = ""
-	if err := s.blogRepo.Update(ctx, blog); err != nil {
-		return nil, apperror.NewInternal(err, "failed to publish")
-	}
-	return blog, nil
-}
-
-// ReviewReject sends back to author.
-func (s *BlogService) ReviewReject(ctx context.Context, blogID, reviewerID uint, note string) (*entity.Blog, error) {
-	blog, err := s.blogRepo.GetByID(ctx, blogID)
-	if err != nil || blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	if blog.Status != entity.BlogInReview {
-		return nil, apperror.NewBadRequest("post is not awaiting review")
-	}
-	blog.Status = entity.BlogRejected
-	blog.ReviewedByID = &reviewerID
-	blog.ReviewNote = note
-	if err := s.blogRepo.Update(ctx, blog); err != nil {
-		return nil, apperror.NewInternal(err, "failed to update blog")
-	}
-	return blog, nil
-}
-
-// ListReviewQueue for reviewers.
-func (s *BlogService) ListReviewQueue(ctx context.Context, page, limit int) ([]entity.Blog, int64, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 || limit > 100 {
-		limit = 20
-	}
-	return s.blogRepo.ListByStatus(ctx, string(entity.BlogInReview), page, limit)
 }

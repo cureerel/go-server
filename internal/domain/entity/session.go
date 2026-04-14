@@ -3,7 +3,7 @@ package entity
 
 import "time"
 
-// Session is a pure business object - NO database tags
+// Session is a pure business object
 type Session struct {
     ID         string
     UserID     uint

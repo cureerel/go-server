@@ -8,13 +8,7 @@ type CreateProductRequest struct {
     Currency    string `json:"currency" binding:"required"`
 }
 
-type UpdateProductRequest struct {
-    Name        *string `json:"name" binding:"omitempty,min=2,max=200"`
-    Description *string `json:"description"`
-    Price       *int64  `json:"price" binding:"omitempty,gt=0"`
-    Currency    *string `json:"currency"`
-    IsActive    *bool   `json:"is_active"`
-}
+
 
 type ProductResponse struct {
     ID          uint   `json:"id"`

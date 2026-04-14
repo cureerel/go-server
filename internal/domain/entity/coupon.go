@@ -31,6 +31,19 @@ type Coupon struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
+
+type CouponUsage struct {
+	ID                   uint      `json:"id"`
+	CouponID             uint      `json:"coupon_id"`
+	OrderID              uint      `json:"order_id"`
+	UserID               uint      `json:"user_id"`
+	DiscountAppliedCents int64     `json:"discount_applied_cents"`
+	CommissionUSDCents   int64     `json:"commission_usd_cents"`
+	CreatedAt            time.Time `json:"created_at"`
+}
+
+
+
 func (c *Coupon) IsValid() bool {
 	if c.Status != CouponStatusApproved {
 		return false
@@ -55,9 +68,3 @@ func (c *Coupon) ApplyDiscount(amountCents int64) int64 {
 	return d
 }
 
-func (c *Coupon) CommissionAmount(amountCents int64) int64 {
-	if c.CommissionPct <= 0 {
-		return 0
-	}
-	return int64(float64(amountCents) * c.CommissionPct / 100)
-}

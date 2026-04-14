@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Copy PostgreSQL schema and/or data between two databases using connection URIs.
-# Usage:
-#   ./scripts/db_copy.sh --schema-only "$SOURCE_DATABASE_URL" "$TARGET_DATABASE_URL"
-#   ./scripts/db_copy.sh --data-only   "$SOURCE_DATABASE_URL" "$TARGET_DATABASE_URL"
-#   ./scripts/db_copy.sh --full        "$SOURCE_DATABASE_URL" "$TARGET_DATABASE_URL"
-#
-# Requires: pg_dump, psql, pg_restore (for custom format — not used here; uses plain SQL pipe).
+
 set -euo pipefail
 
 MODE="${1:-}"

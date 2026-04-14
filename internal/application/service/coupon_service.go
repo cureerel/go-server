@@ -13,18 +13,18 @@ import (
 type CouponService struct {
 	couponRepo      repository.CouponRepository
 	couponUsageRepo repository.CouponUsageRepository
-	payoutRepo      repository.PayoutRepository
+
 }
 
 func NewCouponService(
 	couponRepo repository.CouponRepository,
 	couponUsageRepo repository.CouponUsageRepository,
-	payoutRepo repository.PayoutRepository,
+
 ) *CouponService {
 	return &CouponService{
 		couponRepo:      couponRepo,
 		couponUsageRepo: couponUsageRepo,
-		payoutRepo:      payoutRepo,
+
 	}
 }
 
@@ -101,32 +101,9 @@ func (s *CouponService) GetAll(ctx context.Context, page, limit int, status stri
 	return s.couponRepo.GetAll(ctx, page, limit, status)
 }
 
-// Approve — admin only.
-func (s *CouponService) Approve(ctx context.Context, id uint, adminID uint) error {
-	c, err := s.couponRepo.GetByID(ctx, id)
-	if err != nil || c == nil {
-		return apperror.NewNotFound("coupon not found")
-	}
-	if c.Status != entity.CouponStatusPending {
-		return apperror.NewBadRequest("only pending coupons can be approved")
-	}
-	return s.couponRepo.UpdateStatus(ctx, id, entity.CouponStatusApproved, adminID)
-}
 
-// Reject — admin only.
-func (s *CouponService) Reject(ctx context.Context, id uint, adminID uint) error {
-	c, err := s.couponRepo.GetByID(ctx, id)
-	if err != nil || c == nil {
-		return apperror.NewNotFound("coupon not found")
-	}
-	if c.Status != entity.CouponStatusPending {
-		return apperror.NewBadRequest("only pending coupons can be rejected")
-	}
-	return s.couponRepo.UpdateStatus(ctx, id, entity.CouponStatusRejected, adminID)
-}
 
-// ApplyToOrder records coupon usage and queues affiliate payout if applicable.
-// Called after payment is confirmed.
+// ApplyToOrder
 func (s *CouponService) ApplyToOrder(ctx context.Context, couponID, orderID, userID uint, orderTotalCents int64) error {
 	c, err := s.couponRepo.GetByID(ctx, couponID)
 	if err != nil || c == nil {
@@ -148,18 +125,7 @@ func (s *CouponService) ApplyToOrder(ctx context.Context, couponID, orderID, use
 	}
 	_ = s.couponRepo.IncrementUsed(ctx, couponID)
 
-	// Queue affiliate payout if coupon has commission and a creator.
-	if commission > 0 && c.CreatorID != 0 {
-		orderIDCopy := orderID
-		payout := &entity.Payout{
-			RecipientID: c.CreatorID,
-			Type:        entity.PayoutTypeAffiliateCommission,
-			AmountCents: commission,
-			Status:      entity.PayoutStatusPending,
-			OrderID:     &orderIDCopy,
-		}
-		_ = s.payoutRepo.Create(ctx, payout)
-	}
+	
 	return nil
 }
 

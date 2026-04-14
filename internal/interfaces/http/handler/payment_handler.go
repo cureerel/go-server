@@ -18,7 +18,7 @@ func NewPaymentHandler(svc *service.PaymentService) *PaymentHandler {
 	return &PaymentHandler{svc: svc}
 }
 
-// GET /api/payments/:id — owner or admin
+// GET /api/payments/:id —  admin
 func (h *PaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -38,7 +38,7 @@ func (h *PaymentHandler) GetByID(c *gin.Context) {
 	respond(c, toPaymentResponse(p))
 }
 
-// GET /api/payments — admin+
+// GET /api/payments — admin
 func (h *PaymentHandler) GetAll(c *gin.Context) {
 	page, limit := paginate(c)
 	status := c.Query("status")
@@ -54,7 +54,7 @@ func (h *PaymentHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.PaymentListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// POST /api/payments/:id/complete — admin+
+// POST /api/payments/:id/complete — admin
 func (h *PaymentHandler) MarkCompleted(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.svc.MarkCompleted(c.Request.Context(), id); err != nil {
@@ -64,7 +64,7 @@ func (h *PaymentHandler) MarkCompleted(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "payment marked completed"})
 }
 
-// POST /api/payments/:id/fail — admin+
+// POST /api/payments/:id/fail — admin
 func (h *PaymentHandler) MarkFailed(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.svc.MarkFailed(c.Request.Context(), id); err != nil {
@@ -74,7 +74,7 @@ func (h *PaymentHandler) MarkFailed(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "payment marked failed"})
 }
 
-// POST /api/payments/:id/refund — admin+
+// POST /api/payments/:id/refund — admin
 func (h *PaymentHandler) Refund(c *gin.Context) {
 	id := c.Param("id")
 	var req dto.RefundRequest
@@ -89,7 +89,7 @@ func (h *PaymentHandler) Refund(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "payment refunded"})
 }
 
-// ── mapper ────────────────────────────────────────────────────
+//  mapper
 
 func toPaymentResponse(p *entity.Payment) dto.PaymentResponse {
 	r := dto.PaymentResponse{

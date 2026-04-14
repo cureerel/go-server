@@ -1,9 +1,5 @@
 // internal/application/service/auth_service.go
-// CHANGES from original:
-//   - Signup now sets is_verified=true only after OTP is confirmed.
-//     The OTP verification flow calls userRepo.UpdateVerified().
-//   - hashPassword helper extracted here so otp_service can reuse it.
-//   - Everything else unchanged.
+
 package service
 
 import (

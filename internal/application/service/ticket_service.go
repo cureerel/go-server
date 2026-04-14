@@ -69,16 +69,7 @@ func (s *TicketService) GetAll(ctx context.Context, page, limit int, status, pri
 	})
 }
 
-func (s *TicketService) Assign(ctx context.Context, ticketID, workerID uint) error {
-	t, err := s.ticketRepo.GetByID(ctx, ticketID)
-	if err != nil || t == nil {
-		return apperror.NewNotFound("ticket not found")
-	}
-	if t.IsClosed() {
-		return apperror.NewBadRequest("cannot assign a closed ticket")
-	}
-	return s.ticketRepo.Assign(ctx, ticketID, workerID)
-}
+
 
 func (s *TicketService) Resolve(ctx context.Context, ticketID uint) error {
 	t, err := s.ticketRepo.GetByID(ctx, ticketID)

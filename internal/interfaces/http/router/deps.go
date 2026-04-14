@@ -16,10 +16,10 @@ type Deps struct {
 	OrderHandler      *handler.OrderHandler
 	PaymentHandler    *handler.PaymentHandler
 	CouponHandler     *handler.CouponHandler
-	PayoutHandler     *handler.PayoutHandler
+
 	TicketHandler     *handler.TicketHandler
 	DashboardHandler  *handler.DashboardHandler
-	SuperAdminHandler *handler.SuperAdminHandler
+	SuperAdminHandler *handler.AdminHandler
 	UploadHandler     *handler.UploadHandler
 	MembershipHandler *handler.MembershipHandler
 	PGHandler         *handler.PaymentGatewayHandler

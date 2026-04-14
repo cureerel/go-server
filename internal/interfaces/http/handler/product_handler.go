@@ -134,7 +134,7 @@ func (h *ProductHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "product deleted"})
 }
 
-// ---------------- Helper ----------------
+// Helper 
 
 func toProductResponse(p *entity.Product) dto.ProductResponse {
 	return dto.ProductResponse{

@@ -12,9 +12,7 @@ type Email struct {
 	Text    string 
 }
 
-// Provider is the single interface every email adapter must satisfy.
-// To switch from Resend to SES / Postmark / SendGrid — implement this
-// interface and swap the wire-up in main.go. Nothing else changes.
+
 type Provider interface {
 	Send(ctx context.Context, email Email) error
 }

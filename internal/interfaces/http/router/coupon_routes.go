@@ -21,13 +21,5 @@ func registerCouponRoutes(rg *gin.RouterGroup, d *Deps) {
 			partner.GET("/:id", d.CouponHandler.GetByID)
 		}
 
-		// Admin operations
-		admin := coupons.Group("")
-		admin.Use(middleware.RoleMiddleware(entity.RoleAdmin))
-		{
-			admin.GET("", d.CouponHandler.GetAll)
-			admin.POST("/:id/approve", d.CouponHandler.Approve)
-			admin.POST("/:id/reject", d.CouponHandler.Reject)
-		}
 	}
 }

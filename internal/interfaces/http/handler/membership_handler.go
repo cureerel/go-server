@@ -29,7 +29,7 @@ type upgradeMembershipRequest struct {
     Plan entity.MembershipPlan `json:"plan" binding:"required"`
 }
 
-// ----------------- Handlers -----------------
+
 
 // POST /memberships/activate
 func (h *MembershipHandler) Activate(c *gin.Context) {
@@ -118,7 +118,7 @@ func (h *MembershipHandler) Cancel(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "membership cancelled"})
 }
 
-// ----------------- Helper -----------------
+// Helper
 
 func toMembershipResponse(m *entity.Membership) dto.MembershipResponse {
     return dto.MembershipResponse{

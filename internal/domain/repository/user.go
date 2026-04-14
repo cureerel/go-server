@@ -14,12 +14,12 @@ type UserRepository interface {
 	Update(ctx context.Context, user *entity.User) error
 	Delete(ctx context.Context, id uint) error
 
-	// UpdateRole changes a user's role — used by admin/superadmin.
+	// UpdateRole 
 	UpdateRole(ctx context.Context, id uint, role string) error
 
-	// UpdateVerified marks a user as email-verified after OTP confirmation.
+	// UpdateVerified after OTP confirmation.
 	UpdateVerified(ctx context.Context, id uint, verified bool) error
 
-	// UpdatePassword sets a new password hash — used in password reset flow.
+	// UpdatePassword 
 	UpdatePassword(ctx context.Context, id uint, passwordHash string) error
 }

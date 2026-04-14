@@ -29,8 +29,7 @@ func New(apiKey string) *Client {
 }
 
 // Send implements email.Provider.
-// To swap to SES later: implement email.Provider in a new ses/ package,
-// return that from your factory, delete nothing here.
+
 func (c *Client) Send(ctx context.Context, e email.Email) error {
 	body := map[string]any{
 		"from":    e.From,

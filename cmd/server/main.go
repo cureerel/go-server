@@ -198,7 +198,7 @@ func main() {
 		log.Info("storage client using noop (set CLOUDINARY_* vars to enable)")
 	}
 
-	// ── Repositories ──────────────────────────────────────────
+	// ── Repositories 
 	userRepo         := repositories.NewUserRepository(db)
 	blogRepo         := repositories.NewBlogRepository(db)
 	authRepo         := repositories.NewAuthRepository(db)
@@ -208,16 +208,15 @@ func main() {
 	orderRepo        := repositories.NewOrderRepository(db)
 	paymentRepo      := repositories.NewPaymentRepository(db)
 	couponRepo       := repositories.NewCouponRepository(db)
-	couponUsageRepo  := repositories.NewCouponUsageRepository(db)
-	payoutRepo       := repositories.NewPayoutRepository(db)
+
 	ticketRepo       := repositories.NewTicketRepository(db)
-	upgradeRepo      := repositories.NewUpgradeRequestRepository(db)
+
 	membershipRepo   := repositories.NewMembershipRepository(db)
 	coinRepo         := repositories.NewCoinRepository(db)
 	productRepo      := repositories.NewProductRepository(db)
 	webhookRepo      := repositories.NewWebhookRepository(db)
 
-	// ── Services ──────────────────────────────────────────────
+	// ── Services 
 	authService       := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
 		AccessSecret: cfg.JWT.AccessSecret, RefreshSecret: cfg.JWT.RefreshSecret,
 	})
@@ -229,11 +228,11 @@ func main() {
 	serviceService    := service.NewServiceService(serviceRepo)
 	orderService      := service.NewOrderService(db, orderRepo, serviceRepo, couponRepo, coinRepo)
 	paymentService    := service.NewPaymentService(paymentRepo, orderRepo)
-	couponService     := service.NewCouponService(couponRepo, couponUsageRepo, payoutRepo)
-	payoutService     := service.NewPayoutService(payoutRepo)
+	couponService     := service.NewCouponService(couponRepo)
+
 	ticketService     := service.NewTicketService(ticketRepo)
 	dashboardService  := service.NewDashboardService(db)
-	superAdminService := service.NewSuperAdminService(userRepo, upgradeRepo, db)
+	AdminService      := service.NewAdminService(userRepo, db)
 	productService    := service.NewProductService(productRepo)
 
 	webhookService    := service.NewWebhookService(webhookRepo, service.WebhookConfig{
@@ -241,7 +240,7 @@ func main() {
 		RazorpaySecret: os.Getenv("RAZORPAY_WEBHOOK_SECRET"),
 	})
 
-	// ── Handlers ──────────────────────────────────────────────
+	//  Handlers
 	authHandler       := handler.NewAuthHandler(authService, userService, otpService, cfg.Platform.OTPExpiryMinutes)
 	userHandler       := handler.NewUserHandler(userService)
 	blogHandler       := handler.NewBlogHandler(blogService, coinService)
@@ -249,10 +248,10 @@ func main() {
 	orderHandler      := handler.NewOrderHandler(orderService)
 	paymentHandler    := handler.NewPaymentHandler(paymentService)
 	couponHandler     := handler.NewCouponHandler(couponService)
-	payoutHandler     := handler.NewPayoutHandler(payoutService)
+
 	ticketHandler     := handler.NewTicketHandler(ticketService)
 	dashboardHandler  := handler.NewDashboardHandler(dashboardService)
-	superadminHandler := handler.NewSuperAdminHandler(superAdminService)
+  adminHandler      := handler.NewSuperAdminHandler(AdminService)
 	uploadHandler     := handler.NewUploadHandler(storageClient)
 	membershipHandler := handler.NewMembershipHandler(membershipService)
 	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService, paymentService)
@@ -263,8 +262,8 @@ func main() {
 	r := router.SetupRouter(
 		userHandler, blogHandler, authHandler, authService,
 		serviceHandler, orderHandler, paymentHandler,
-		couponHandler, payoutHandler, ticketHandler,
-		dashboardHandler, superadminHandler, uploadHandler,
+		couponHandler, ticketHandler,
+		dashboardHandler,adminHandler, uploadHandler,
 		membershipHandler, pgHandler, coinHandler,
 		productHandler, webhookHandler,
 		log, cfg.CORS.AllowedOrigins,

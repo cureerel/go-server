@@ -64,7 +64,7 @@ func OrderFromDomain(e *entity.Order) *Order {
 	return m
 }
 
-// ── OrderItem ─────────────────────────────────────────────────
+// ── OrderItem 
 
 type OrderItem struct {
 	ID        uint      `gorm:"primaryKey"`

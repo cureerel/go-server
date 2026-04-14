@@ -1,13 +1,13 @@
 // internal/interfaces/dto/payment_dto.go
 package dto
 
-// ── Requests ──────────────────────────────────────────────────
+// ── Requests 
 
 type RefundRequest struct {
 	RefundID string `json:"refund_id" binding:"required"`
 }
 
-// ── Responses ─────────────────────────────────────────────────
+// ── Responses 
 
 type PaymentResponse struct {
 	ID                string  `json:"id"`
