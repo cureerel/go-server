@@ -14,12 +14,12 @@ type UserRepository interface {
 	Update(ctx context.Context, user *entity.User) error
 	Delete(ctx context.Context, id uint) error
 
-	// UpdateRole 
+	// UpdateRole
 	UpdateRole(ctx context.Context, id uint, role string) error
 
 	// UpdateVerified after OTP confirmation.
 	UpdateVerified(ctx context.Context, id uint, verified bool) error
 
-	// UpdatePassword 
+	// UpdatePassword
 	UpdatePassword(ctx context.Context, id uint, passwordHash string) error
 }

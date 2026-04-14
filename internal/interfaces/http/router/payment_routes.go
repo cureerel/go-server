@@ -15,7 +15,7 @@ func registerPaymentRoutes(rg *gin.RouterGroup, d *Deps) {
 	payments.Use(middleware.AuthMiddleware(d.AuthService))
 	{
 		payments.GET("/:id", d.PaymentHandler.GetByID)
-		
+
 		// Payment Gateway operations
 		payments.POST("/razorpay/create-order", d.PGHandler.RazorpayCreateOrder)
 		payments.POST("/razorpay/verify", d.PGHandler.RazorpayVerify)

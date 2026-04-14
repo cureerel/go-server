@@ -52,4 +52,3 @@ func (h *CoinHandler) PurchaseMembership(c *gin.Context) {
 
 	respond(c, gin.H{"message": "membership purchased successfully"})
 }
-

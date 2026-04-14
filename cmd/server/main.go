@@ -12,17 +12,17 @@ import (
 	"time"
 
 	"github.com/cureerel/cserver/internal/application/service"
-	"github.com/joho/godotenv"
 	emailinfra "github.com/cureerel/cserver/internal/infrastructure/email"
 	"github.com/cureerel/cserver/internal/infrastructure/email/resend"
 	"github.com/cureerel/cserver/internal/infrastructure/postgres"
+	"github.com/cureerel/cserver/internal/infrastructure/postgres/models"
 	"github.com/cureerel/cserver/internal/infrastructure/postgres/repositories"
 	storageinfra "github.com/cureerel/cserver/internal/infrastructure/storage"
 	"github.com/cureerel/cserver/internal/infrastructure/storage/cloudinary"
 	"github.com/cureerel/cserver/internal/interfaces/http/handler"
 	"github.com/cureerel/cserver/internal/interfaces/http/router"
 	"github.com/cureerel/cserver/pkg/logger"
-	"github.com/cureerel/cserver/internal/infrastructure/postgres/models"
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
@@ -167,7 +167,7 @@ func main() {
 	// Inject auto-migration for newly added coin tables
 	// to prevent 500 errors if Atlas is not installed.
 	err = db.AutoMigrate(
-		&models.UserWallet{}, 
+		&models.UserWallet{},
 		&models.CoinLedger{},
 		&models.BlogUnlock{},
 	)
@@ -198,72 +198,70 @@ func main() {
 		log.Info("storage client using noop (set CLOUDINARY_* vars to enable)")
 	}
 
-	// ── Repositories 
-	userRepo         := repositories.NewUserRepository(db)
-	blogRepo         := repositories.NewBlogRepository(db)
-	authRepo         := repositories.NewAuthRepository(db)
-	sessionRepo      := repositories.NewSessionRepository(db)
-	otpRepo          := repositories.NewOTPRepository(db)
-	serviceRepo      := repositories.NewServiceRepository(db)
-	orderRepo        := repositories.NewOrderRepository(db)
-	paymentRepo      := repositories.NewPaymentRepository(db)
-	couponRepo       := repositories.NewCouponRepository(db)
+	// Repositories
+	userRepo := repositories.NewUserRepository(db)
+	blogRepo := repositories.NewBlogRepository(db)
+	authRepo := repositories.NewAuthRepository(db)
+	sessionRepo := repositories.NewSessionRepository(db)
+	otpRepo := repositories.NewOTPRepository(db)
+	serviceRepo := repositories.NewServiceRepository(db)
+	orderRepo := repositories.NewOrderRepository(db)
+	paymentRepo := repositories.NewPaymentRepository(db)
+	couponRepo := repositories.NewCouponRepository(db)
+	ticketRepo := repositories.NewTicketRepository(db)
+	membershipRepo := repositories.NewMembershipRepository(db)
+	coinRepo := repositories.NewCoinRepository(db)
+	productRepo := repositories.NewProductRepository(db)
+	webhookRepo := repositories.NewWebhookRepository(db)
 
-	ticketRepo       := repositories.NewTicketRepository(db)
-
-	membershipRepo   := repositories.NewMembershipRepository(db)
-	coinRepo         := repositories.NewCoinRepository(db)
-	productRepo      := repositories.NewProductRepository(db)
-	webhookRepo      := repositories.NewWebhookRepository(db)
-
-	// ── Services 
-	authService       := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
+	// Services
+	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, service.JWTConfig{
 		AccessSecret: cfg.JWT.AccessSecret, RefreshSecret: cfg.JWT.RefreshSecret,
 	})
-	otpService        := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
-	userService       := service.NewUserService(userRepo)
-	blogService       := service.NewBlogService(blogRepo, coinRepo, membershipRepo)
+	otpService := service.NewOTPService(otpRepo, userRepo, emailClient, cfg.Email.FromName, cfg.Email.FromAddress, cfg.Platform.OTPExpiryMinutes)
+	userService := service.NewUserService(userRepo)
+	blogService := service.NewBlogService(blogRepo, coinRepo, membershipRepo)
 	membershipService := service.NewMembershipService(membershipRepo)
-	coinService       := service.NewCoinService(db, coinRepo, membershipService)
-	serviceService    := service.NewServiceService(serviceRepo)
-	orderService      := service.NewOrderService(db, orderRepo, serviceRepo, couponRepo, coinRepo)
-	paymentService    := service.NewPaymentService(paymentRepo, orderRepo)
-	couponService     := service.NewCouponService(couponRepo)
+	coinService := service.NewCoinService(db, coinRepo, membershipService)
+	serviceService := service.NewServiceService(serviceRepo)
+	orderService := service.NewOrderService(db, orderRepo, serviceRepo, couponRepo, coinRepo)
+	paymentService := service.NewPaymentService(paymentRepo, orderRepo)
+	couponService := service.NewCouponService(couponRepo, repositories.NewCouponUsageRepository(db))
 
-	ticketService     := service.NewTicketService(ticketRepo)
-	dashboardService  := service.NewDashboardService(db)
-	AdminService      := service.NewAdminService(userRepo, db)
-	productService    := service.NewProductService(productRepo)
+	ticketService := service.NewTicketService(ticketRepo)
+	dashboardService := service.NewDashboardService(db)
+	adminService := service.NewAdminService(userRepo, db)
+	productService := service.NewProductService(productRepo)
 
-	webhookService    := service.NewWebhookService(webhookRepo, service.WebhookConfig{
+	webhookService := service.NewWebhookService(webhookRepo, service.WebhookConfig{
 		StripeSecret:   os.Getenv("STRIPE_WEBHOOK_SECRET"),
 		RazorpaySecret: os.Getenv("RAZORPAY_WEBHOOK_SECRET"),
 	})
 
 	//  Handlers
-	authHandler       := handler.NewAuthHandler(authService, userService, otpService, cfg.Platform.OTPExpiryMinutes)
-	userHandler       := handler.NewUserHandler(userService)
-	blogHandler       := handler.NewBlogHandler(blogService, coinService)
-	serviceHandler    := handler.NewServiceHandler(serviceService)
-	orderHandler      := handler.NewOrderHandler(orderService)
-	paymentHandler    := handler.NewPaymentHandler(paymentService)
-	couponHandler     := handler.NewCouponHandler(couponService)
+	authHandler := handler.NewAuthHandler(authService, userService, otpService, cfg.Platform.OTPExpiryMinutes)
+	userHandler := handler.NewUserHandler(userService)
+	blogHandler := handler.NewBlogHandler(blogService, coinService)
+	serviceHandler := handler.NewServiceHandler(serviceService)
+	orderHandler := handler.NewOrderHandler(orderService)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
+	couponHandler := handler.NewCouponHandler(couponService)
 
-	ticketHandler     := handler.NewTicketHandler(ticketService)
-	dashboardHandler  := handler.NewDashboardHandler(dashboardService)
-  adminHandler      := handler.NewSuperAdminHandler(AdminService)
-	uploadHandler     := handler.NewUploadHandler(storageClient)
+	ticketHandler := handler.NewTicketHandler(ticketService)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+	adminHandler := handler.NewAdminHandler(adminService)
+	uploadHandler := handler.NewUploadHandler(storageClient)
 	membershipHandler := handler.NewMembershipHandler(membershipService)
-	pgHandler         := handler.NewPaymentGatewayHandler(membershipService, coinService, paymentService)
-	coinHandler       := handler.NewCoinHandler(coinService)
-	productHandler    := handler.NewProductHandler(productService)
-	webhookHandler    := handler.NewWebhookHandler(webhookService, log)
+	pgHandler := handler.NewPaymentGatewayHandler(membershipService, coinService, paymentService)
+	coinHandler := handler.NewCoinHandler(coinService)
+	productHandler := handler.NewProductHandler(productService)
+	webhookHandler := handler.NewWebhookHandler(webhookService, log)
 
 	r := router.SetupRouter(
 		userHandler, blogHandler, authHandler, authService,
 		serviceHandler, orderHandler, paymentHandler,
 		couponHandler, ticketHandler,
-		dashboardHandler,adminHandler, uploadHandler,
+		dashboardHandler, adminHandler, uploadHandler,
 		membershipHandler, pgHandler, coinHandler,
 		productHandler, webhookHandler,
 		log, cfg.CORS.AllowedOrigins,

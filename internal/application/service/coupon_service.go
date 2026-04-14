@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/cureerel/cserver/internal/domain/repository"
@@ -13,33 +14,30 @@ import (
 type CouponService struct {
 	couponRepo      repository.CouponRepository
 	couponUsageRepo repository.CouponUsageRepository
-
 }
 
 func NewCouponService(
 	couponRepo repository.CouponRepository,
 	couponUsageRepo repository.CouponUsageRepository,
-
 ) *CouponService {
 	return &CouponService{
 		couponRepo:      couponRepo,
 		couponUsageRepo: couponUsageRepo,
-
 	}
 }
 
 type CreateCouponInput struct {
 	CreatorID        uint
 	Code             string
-	Type             string
+	Type             string // discount | affiliate | both
 	DiscountUSDCents int64
 	MaxDiscountCents int64
 	CommissionPct    float64
 	UsageLimit       *int
-	ExpiresAt        *string // RFC3339 optional
+	ExpiresAt        *string // RFC3339 string from API
 }
 
-// Create — any partner+ can create a coupon; it starts as pending.
+// Create — admin creates a coupon (starts as approved, no review needed for single-person platform).
 func (s *CouponService) Create(ctx context.Context, in CreateCouponInput) (*entity.Coupon, error) {
 	code := strings.ToUpper(strings.TrimSpace(in.Code))
 	if code == "" {
@@ -56,6 +54,16 @@ func (s *CouponService) Create(ctx context.Context, in CreateCouponInput) (*enti
 		return nil, apperror.NewBadRequest("type must be discount, affiliate, or both")
 	}
 
+	var exp *time.Time
+	if in.ExpiresAt != nil && *in.ExpiresAt != "" {
+		t, err := time.Parse(time.RFC3339, *in.ExpiresAt)
+		if err != nil {
+			return nil, apperror.NewBadRequest("expires_at must be RFC3339 e.g. 2026-12-31T23:59:59Z")
+		}
+		exp = &t
+	}
+
+	now := time.Now()
 	c := &entity.Coupon{
 		CreatorID:        in.CreatorID,
 		Code:             code,
@@ -63,8 +71,11 @@ func (s *CouponService) Create(ctx context.Context, in CreateCouponInput) (*enti
 		DiscountUSDCents: in.DiscountUSDCents,
 		MaxDiscountCents: in.MaxDiscountCents,
 		CommissionPct:    in.CommissionPct,
-		Status:           entity.CouponStatusPending,
+		Status:           entity.CouponStatusApproved, // admin-created → immediately valid
 		UsageLimit:       in.UsageLimit,
+		ExpiresAt:        exp,
+		ApprovedBy:       &in.CreatorID,
+		ApprovedAt:       &now,
 	}
 	if err := s.couponRepo.Create(ctx, c); err != nil {
 		return nil, apperror.NewInternal(err, "failed to create coupon")
@@ -83,7 +94,7 @@ func (s *CouponService) GetByID(ctx context.Context, id uint) (*entity.Coupon, e
 	return c, nil
 }
 
-// Validate returns the coupon if it is valid for use. Used at checkout.
+// Validate returns the coupon if active and usable. Used at checkout.
 func (s *CouponService) Validate(ctx context.Context, code string) (*entity.Coupon, error) {
 	c, err := s.couponRepo.GetByCode(ctx, strings.ToUpper(strings.TrimSpace(code)))
 	if err != nil {
@@ -96,14 +107,28 @@ func (s *CouponService) Validate(ctx context.Context, code string) (*entity.Coup
 }
 
 func (s *CouponService) GetAll(ctx context.Context, page, limit int, status string) ([]entity.Coupon, int64, error) {
-	if page < 1 { page = 1 }
-	if limit < 1 || limit > 100 { limit = 10 }
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 	return s.couponRepo.GetAll(ctx, page, limit, status)
 }
 
+// Delete — admin removes a coupon.
+func (s *CouponService) Delete(ctx context.Context, id uint) error {
+	c, err := s.couponRepo.GetByID(ctx, id)
+	if err != nil {
+		return apperror.NewInternal(err, "failed to fetch coupon")
+	}
+	if c == nil {
+		return apperror.NewNotFound("coupon not found")
+	}
+	return s.couponRepo.Delete(ctx, id)
+}
 
-
-// ApplyToOrder
+// ApplyToOrder records coupon usage after a successful order.
 func (s *CouponService) ApplyToOrder(ctx context.Context, couponID, orderID, userID uint, orderTotalCents int64) error {
 	c, err := s.couponRepo.GetByID(ctx, couponID)
 	if err != nil || c == nil {
@@ -124,9 +149,18 @@ func (s *CouponService) ApplyToOrder(ctx context.Context, couponID, orderID, use
 		return apperror.NewInternal(err, "failed to record coupon usage")
 	}
 	_ = s.couponRepo.IncrementUsed(ctx, couponID)
-
-	
 	return nil
+}
+
+// GetUsage returns usage history for a coupon (admin).
+func (s *CouponService) GetUsage(ctx context.Context, couponID uint, page, limit int) ([]entity.CouponUsage, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	return s.couponUsageRepo.GetByCouponID(ctx, couponID, page, limit)
 }
 
 func validCouponType(t string) bool {

@@ -3,13 +3,6 @@
 A modular Go backend for the Cureerel platform. All API routes are prefixed with `/api`.
 
 
-## 🎟️ Support Tickets (`/tickets`)
-| Method | Path | Role | Description |
-| :--- | :--- | :--- | :--- |
-| POST | `/tickets` | Auth | Create a support ticket |
-| GET | `/tickets/me` | Auth | List my tickets |
-| GET | `/tickets` | Worker | List all tickets |
-
 ## 🎣 Webhooks (`/webhooks`)
 | Method | Path | Provider | Description |
 | :--- | :--- | :--- | :--- |
@@ -17,7 +10,7 @@ A modular Go backend for the Cureerel platform. All API routes are prefixed with
 | POST | `/webhooks/razorpay` | Razorpay | Specialized Razorpay event handler |
 | POST | `/payments/stripe/webhook` | Stripe | Legacy/Direct Stripe handler |
 
-## 📊 Dashboard & System
+## Dashboard 
 - **User**: 
 - **Dashboard**:
 - **Memberships**: 

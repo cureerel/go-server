@@ -1,8 +1,8 @@
+// internal/interfaces/http/handler/product_handler.go
 package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/cureerel/cserver/internal/application/service"
 	"github.com/cureerel/cserver/internal/domain/entity"
@@ -18,134 +18,117 @@ func NewProductHandler(productService *service.ProductService) *ProductHandler {
 	return &ProductHandler{productService: productService}
 }
 
-// POST /products
+// POST /api/products — admin
 func (h *ProductHandler) Create(c *gin.Context) {
 	var req dto.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	product, err := h.productService.Create(c.Request.Context(), service.CreateProductInput{
 		Name:        req.Name,
 		Description: req.Description,
-		Type:        entity.ProductType(req.Type),
+		Type:        req.Type, // string — service validates
 		Price:       req.Price,
-		Currency:    entity.Currency(req.Currency),
+		Currency:    req.Currency,
+		Stock:       req.Stock,
+		ImageURL:    req.ImageURL,
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
-
-	c.JSON(http.StatusCreated, gin.H{"data": toProductResponse(product)})
+	respondCreated(c, toProductResponse(product))
 }
 
-// GET /products/:id
+// GET /api/products/:id — public
 func (h *ProductHandler) GetByID(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := parseID(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		respondErr(c, err)
 		return
 	}
-
-	product, err := h.productService.GetByID(c.Request.Context(), uint(id))
+	product, err := h.productService.GetByID(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"data": toProductResponse(product)})
+	respond(c, toProductResponse(product))
 }
 
-// GET /products
+// GET /api/products — public
 func (h *ProductHandler) GetAll(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-
-	products, total, err := h.productService.GetAll(c.Request.Context(), page, limit)
+	page, limit := paginate(c)
+	productType := c.Query("type") // optional filter: physical | digital
+	products, total, err := h.productService.GetAll(c.Request.Context(), page, limit, productType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
-
-	resp := make([]dto.ProductResponse, len(products))
-	for i, p := range products {
-		resp[i] = toProductResponse(&p)
+	list := make([]dto.ProductResponse, len(products))
+	for i := range products {
+		list[i] = toProductResponse(&products[i])
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data":  resp,
-		"total": total,
-		"page":  page,
-		"limit": limit,
-	})
+	c.JSON(http.StatusOK, dto.ProductListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// PUT /products/:id
+// PUT /api/products/:id — admin
 func (h *ProductHandler) Update(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := parseID(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		respondErr(c, err)
 		return
 	}
-
 	var req dto.UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Convert pointer string to *entity.Currency
-	var currency *entity.Currency
-	if req.Currency != nil {
-		c := entity.Currency(*req.Currency)
-		currency = &c
-	}
-
-	product, err := h.productService.Update(c.Request.Context(), service.UpdateProductInput{
-		ID:          uint(id),
+	product, err := h.productService.Update(c.Request.Context(), id, service.UpdateProductInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Price:       req.Price,
-		Currency:    currency,
+		Stock:       req.Stock,
+		ImageURL:    req.ImageURL,
 		IsActive:    req.IsActive,
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": product})
+	respond(c, toProductResponse(product))
 }
 
-// DELETE /products/:id
+// DELETE /api/products/:id — admin
 func (h *ProductHandler) Delete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	id, err := parseID(c, "id")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		respondErr(c, err)
 		return
 	}
-
-	if err := h.productService.Delete(c.Request.Context(), uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := h.productService.Delete(c.Request.Context(), id); err != nil {
+		respondErr(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "product deleted"})
 }
 
-// Helper 
+// mapper
 
 func toProductResponse(p *entity.Product) dto.ProductResponse {
 	return dto.ProductResponse{
 		ID:          p.ID,
+		SKU:         p.SKU,
 		Name:        p.Name,
 		Description: p.Description,
 		Type:        string(p.Type),
 		Price:       p.Price,
+		PriceUSD:    p.PriceUSD(),
 		Currency:    string(p.Currency),
+		Stock:       p.Stock,
+		ImageURL:    p.ImageURL,
 		IsActive:    p.IsActive,
-		CreatedAt:   p.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:   p.UpdatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:   p.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   p.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }

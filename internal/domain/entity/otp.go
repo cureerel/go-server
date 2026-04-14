@@ -10,7 +10,7 @@ const (
 
 type OTP struct {
 	ID        uint      `json:"id"`
-	UserID    *uint     `json:"user_id,omitempty"` 
+	UserID    *uint     `json:"user_id,omitempty"`
 	Email     string    `json:"email"`
 	Code      string    `json:"-"`
 	Type      string    `json:"type"`

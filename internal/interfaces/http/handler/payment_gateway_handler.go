@@ -27,25 +27,15 @@ var planAmountsPaise = map[string]int64{
 	"pro":   149900, // ₹1499
 }
 
-// coinPackPaise / coinPackCoins — fiat top-up packs (coins are platform credits; 1 coin ≈ ₹1 in these packs).
-var coinPackPaise = map[string]int64{
-	"100": 10000, // ₹100 → 100 coins
-	"500": 50000,
-}
-var coinPackCoins = map[string]int64{
-	"100": 100,
-	"500": 500,
-}
 
 // planEntityMap maps string → entity.MembershipPlan
 var planEntityMap = map[string]entity.MembershipPlan{
-	"free":       entity.PlanFree,
-	"basic":      entity.PlanBasic,
-	"pro":        entity.PlanPro,
-	"enterprise": entity.PlanEnterprise,
+	"free":  entity.PlanFree,
+	"basic": entity.PlanBasic,
+	"pro":   entity.PlanPro,
 }
 
-// ─────────────────────────────────────────────────────────────────
+
 type PaymentGatewayHandler struct {
 	membershipSvc *service.MembershipService
 	coinSvc       *service.CoinService
@@ -76,8 +66,8 @@ func NewPaymentGatewayHandler(membershipSvc *service.MembershipService, coinSvc 
 // Returns: { "order_id": "order_xxx", "key_id": "rzp_live_xxx", "amount": 49900 }
 func (h *PaymentGatewayHandler) RazorpayCreateOrder(c *gin.Context) {
 	var body struct {
-		Plan          string `json:"plan" binding:"required"`
-		PurchaseType  string `json:"purchase_type"` // default membership
+		Plan         string `json:"plan" binding:"required"`
+		PurchaseType string `json:"purchase_type"` // default membership
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "plan is required"})
@@ -96,7 +86,7 @@ func (h *PaymentGatewayHandler) RazorpayCreateOrder(c *gin.Context) {
 		_, err := fmt.Sscanf(body.Plan, "%d", &parsedCoins)
 		if err == nil && parsedCoins > 0 {
 			ok = true
-            // 10 coins = $1 USD = ~83 INR.
+			// 10 coins = $1 USD = ~83 INR.
 			amount = (parsedCoins / 10) * 83 * 100 // amount in paise
 		}
 	case "membership":
@@ -119,9 +109,9 @@ func (h *PaymentGatewayHandler) RazorpayCreateOrder(c *gin.Context) {
 		"currency": "INR",
 		"receipt":  receipt,
 		"notes": map[string]interface{}{
-			"user_id":        uid,
-			"plan":           body.Plan,
-			"purchase_type":  pt,
+			"user_id":          uid,
+			"plan":             body.Plan,
+			"purchase_type":    pt,
 			"default_provider": h.pgFactory.DefaultTopupProvider(),
 		},
 	}
@@ -223,21 +213,25 @@ func (h *PaymentGatewayHandler) StripeCreateSession(c *gin.Context) {
 	var amount int64
 	var ok bool
 	var title string
-    currency := "usd"
+	currency := "usd"
 
 	switch pt {
 	case "coins":
-        var parsedCoins int64
-        _, err := fmt.Sscanf(body.Plan, "%d", &parsedCoins)
-        if err == nil && parsedCoins > 0 {
-            ok = true
-            amount = (parsedCoins / 10) * 100 // 10 coins = $1, amount in cents
-            title = fmt.Sprintf("%d Platform Coins", parsedCoins)
-        }
+		var parsedCoins int64
+		_, err := fmt.Sscanf(body.Plan, "%d", &parsedCoins)
+		if err == nil && parsedCoins > 0 {
+			ok = true
+			amount = (parsedCoins / 10) * 100 // 10 coins = $1, amount in cents
+			title = fmt.Sprintf("%d Platform Coins", parsedCoins)
+		}
 	case "membership":
-		amount, ok = planAmountsPaise[body.Plan] // Note: membership still hardcoded in paise? Wait, let's keep it as is, or use USD. We'll use "usd" currency anyway so planAmountsPaise is 49900 (=$499). Is that right? No basic is $5.00: 500 in planAmountsPaise. Wait, planAmountsPaise says 49900 for Basic, which is 499 Inr. 
-        if amount == 49900 { amount = 500 } // $5
-        if amount == 149900 { amount = 1500 } // $15
+		amount, ok = planAmountsPaise[body.Plan] // Note: membership still hardcoded in paise? Wait, let's keep it as is, or use USD. We'll use "usd" currency anyway so planAmountsPaise is 49900 (=$499). Is that right? No basic is $5.00: 500 in planAmountsPaise. Wait, planAmountsPaise says 49900 for Basic, which is 499 Inr.
+		if amount == 49900 {
+			amount = 500
+		} // $5
+		if amount == 149900 {
+			amount = 1500
+		} // $15
 		title = fmt.Sprintf("%s Membership", body.Plan)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid purchase_type"})
@@ -358,7 +352,7 @@ func (h *PaymentGatewayHandler) StripeWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"received": true})
 }
 
-// POST /api/payments/razorpay/webhook 
+// POST /api/payments/razorpay/webhook
 // Listens to "payment.captured" from Razorpay Server.
 // Verify HMAC SHA256 of body using RAZORPAY_WEBHOOK_SECRET
 func (h *PaymentGatewayHandler) RazorpayWebhook(c *gin.Context) {

@@ -4,7 +4,6 @@ package repositories
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/cureerel/cserver/internal/domain/repository"
@@ -71,24 +70,14 @@ func (r *couponRepository) GetAll(ctx context.Context, page, limit int, status s
 	return coupons, total, nil
 }
 
-func (r *couponRepository) UpdateStatus(ctx context.Context, id uint, status string, approvedBy uint) error {
-	now := time.Now()
-	updates := map[string]any{
-		"status":      status,
-		"approved_at": now,
-	}
-	if approvedBy != 0 {
-		updates["approved_by"] = approvedBy
-	}
-	return r.db.WithContext(ctx).Model(&models.Coupon{}).Where("id = ?", id).Updates(updates).Error
+func (r *couponRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Coupon{}, id).Error
 }
 
 func (r *couponRepository) IncrementUsed(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&models.Coupon{}).
 		Where("id = ?", id).UpdateColumn("used_count", gorm.Expr("used_count + 1")).Error
 }
-
-
 
 type couponUsageRepository struct{ db *gorm.DB }
 

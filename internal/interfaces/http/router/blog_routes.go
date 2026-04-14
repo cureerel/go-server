@@ -1,7 +1,6 @@
 package router
 
 import (
-
 	"github.com/cureerel/cserver/internal/interfaces/http/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +31,5 @@ func registerBlogRoutes(rg *gin.RouterGroup, d *Deps) {
 
 		}
 
-		
 	}
 }

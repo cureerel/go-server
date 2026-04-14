@@ -13,4 +13,3 @@ func registerCoinRoutes(rg *gin.RouterGroup, d *Deps) {
 		coins.POST("/purchase-membership", d.CoinHandler.PurchaseMembership)
 	}
 }
-

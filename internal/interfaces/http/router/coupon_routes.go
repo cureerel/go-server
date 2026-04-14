@@ -7,19 +7,17 @@ import (
 )
 
 func registerCouponRoutes(rg *gin.RouterGroup, d *Deps) {
-	// Public validation
+	// Public: validate a coupon code at checkout
 	rg.GET("/coupons/validate", d.CouponHandler.Validate)
 
+	// Admin only
 	coupons := rg.Group("/coupons")
 	coupons.Use(middleware.AuthMiddleware(d.AuthService))
+	coupons.Use(middleware.RoleMiddleware(entity.RoleAdmin))
 	{
-		// Partner operations
-		partner := coupons.Group("")
-		partner.Use(middleware.RoleMiddleware(entity.RolePartner))
-		{
-			partner.POST("", d.CouponHandler.Create)
-			partner.GET("/:id", d.CouponHandler.GetByID)
-		}
-
+		coupons.GET("", d.CouponHandler.GetAll)
+		coupons.POST("", d.CouponHandler.Create)
+		coupons.GET("/:id", d.CouponHandler.GetByID)
+		coupons.DELETE("/:id", d.CouponHandler.Delete)
 	}
 }

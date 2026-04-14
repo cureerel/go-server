@@ -1,8 +1,25 @@
 // internal/interfaces/dto/service_dto.go
 package dto
 
+// Requests
 
-// ── Responses ─────────────────────────────────────────────────
+type CreateServiceRequest struct {
+	Title         string `json:"title"           binding:"required,min=3"`
+	Description   string `json:"description"     binding:"required"`
+	PriceUSDCents int64  `json:"price_usd_cents" binding:"required,min=1"`
+	CoverImageURL string `json:"cover_image_url"`
+	CoverImageKey string `json:"cover_image_key"`
+}
+
+type UpdateServiceRequest struct {
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	PriceUSDCents int64  `json:"price_usd_cents"`
+	CoverImageURL string `json:"cover_image_url"`
+	CoverImageKey string `json:"cover_image_key"`
+}
+
+// Responses
 
 type ServiceResponse struct {
 	ID            uint    `json:"id"`

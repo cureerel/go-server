@@ -13,13 +13,11 @@ type RegisterInitResponse struct {
 }
 
 type RegisterVerifyRequest struct {
-	Name     string `json:"name"     binding:"required,min=2,max=100"`
+	Username string `json:"username" binding:"required,min=2,max=100"`
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 	Code     string `json:"code"     binding:"required,len=6"`
 }
-
-
 
 type PasswordResetInitRequest struct {
 	Email string `json:"email" binding:"required,email"`
@@ -76,16 +74,16 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password"     binding:"required,min=6"`
 }
 
-// ── Signup 
+// ── Signup
 
 type SignupRequest struct {
-	Name     string `json:"name"     binding:"required,min=2,max=100"`
+	Username string `json:"username" binding:"required,min=2,max=100"`
 	Email    string `json:"email"    binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
 type SignupResponse struct {
-	ID    uint   `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }

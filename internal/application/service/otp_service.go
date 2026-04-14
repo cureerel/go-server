@@ -62,7 +62,7 @@ func (s *OTPService) SendResetOTP(ctx context.Context, email string) error {
 }
 
 // VerifyAndCreateUser verifies OTP then creates a verified user. Used by RegisterVerify handler.
-func (s *OTPService) VerifyAndCreateUser(ctx context.Context, name, email, password, code string) (*entity.User, error) {
+func (s *OTPService) VerifyAndCreateUser(ctx context.Context, username, email, password, code string) (*entity.User, error) {
 	if err := s.verifyOTP(ctx, email, code, entity.OTPTypeRegister); err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *OTPService) VerifyAndCreateUser(ctx context.Context, name, email, passw
 		return nil, apperror.NewInternal(err, "failed to hash password")
 	}
 	user := &entity.User{
-		Name: name, Email: email, PasswordHash: string(hash),
+		Username: username, Email: email, PasswordHash: string(hash),
 		Role: entity.RoleUser, IsActive: true, IsVerified: true,
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {

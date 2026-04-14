@@ -52,7 +52,6 @@ func (s *CoinService) PurchaseMembership(ctx context.Context, userID uint, plan 
 	})
 }
 
-
 func (s *CoinService) Balance(ctx context.Context, userID uint) (int64, error) {
 	return s.coinRepo.GetBalance(ctx, userID)
 }
@@ -85,4 +84,3 @@ func (s *CoinService) UnlockBlog(ctx context.Context, userID, blogID uint, price
 		return s.coinRepo.AddBlogUnlock(ctx, tx, userID, blogID, price)
 	})
 }
-

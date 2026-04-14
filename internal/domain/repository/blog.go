@@ -11,7 +11,7 @@ type BlogFilter struct {
 	Page     int
 	Limit    int
 	Search   string
-	Tags     string 
+	Tag      string
 	Status   string
 	SortBy   string
 	OrderDir string
@@ -29,9 +29,5 @@ type BlogRepository interface {
 	Delete(ctx context.Context, id uint) error
 	IncrementViews(ctx context.Context, id uint) error
 	RecordView(ctx context.Context, blogID uint, visitorHash string) (bool, error)
-
-	AddCoAuthor(ctx context.Context, blogID, userID uint) error
-	ListCoAuthors(ctx context.Context, blogID uint) ([]entity.BlogAuthor, error)
-	UserCanEditBlog(ctx context.Context, blogID, userID uint) (bool, error)
 	ListByStatus(ctx context.Context, status string, page, limit int) ([]entity.Blog, int64, error)
 }

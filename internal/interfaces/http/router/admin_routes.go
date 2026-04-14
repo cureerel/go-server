@@ -6,17 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerSuperAdminRoutes(rg *gin.RouterGroup, d *Deps) {
+func registerAdminRoutes(rg *gin.RouterGroup, d *Deps) {
 	auth := rg.Group("")
 	auth.Use(middleware.AuthMiddleware(d.AuthService))
 	{
-	
-
-		sa := auth.Group("/superadmin")
-		sa.Use(middleware.RoleMiddleware(entity.RoleAdmin))
+		admin := auth.Group("/admin")
+		admin.Use(middleware.RoleMiddleware(entity.RoleAdmin))
 		{
-			sa.GET("/stats", d.SuperAdminHandler.Stats)
-			
+			admin.GET("/stats", d.AdminHandler.Stats)
 		}
 	}
 }

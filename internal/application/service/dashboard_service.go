@@ -21,12 +21,12 @@ func NewDashboardService(db *gorm.DB) *DashboardService {
 // ── User dashboard ────────────────────────────────────────────
 
 type UserDashboard struct {
-	TotalOrders      int64 `json:"total_orders"`
-	PendingOrders    int64 `json:"pending_orders"`
-	CompletedOrders  int64 `json:"completed_orders"`
-	TotalSpentCents  int64 `json:"total_spent_cents"`
-	OpenTickets      int64 `json:"open_tickets"`
-	ResolvedTickets  int64 `json:"resolved_tickets"`
+	TotalOrders     int64 `json:"total_orders"`
+	PendingOrders   int64 `json:"pending_orders"`
+	CompletedOrders int64 `json:"completed_orders"`
+	TotalSpentCents int64 `json:"total_spent_cents"`
+	OpenTickets     int64 `json:"open_tickets"`
+	ResolvedTickets int64 `json:"resolved_tickets"`
 }
 
 func (s *DashboardService) UserDashboard(ctx context.Context, userID uint) (*UserDashboard, error) {
@@ -55,14 +55,14 @@ func (s *DashboardService) UserDashboard(ctx context.Context, userID uint) (*Use
 // ── Partner dashboard ─────────────────────────────────────────
 
 type PartnerDashboard struct {
-	TotalServices    int64 `json:"total_services"`
-	LiveServices     int64 `json:"live_services"`
-	TotalOrders      int64 `json:"total_orders"`
+	TotalServices     int64 `json:"total_services"`
+	LiveServices      int64 `json:"live_services"`
+	TotalOrders       int64 `json:"total_orders"`
 	TotalRevenueCents int64 `json:"total_revenue_cents"`
-	PendingPayouts   int64 `json:"pending_payouts"`
-	PaidPayouts      int64 `json:"paid_payouts"`
-	TotalCoupons     int64 `json:"total_coupons"`
-	ActiveCoupons    int64 `json:"active_coupons"`
+	PendingPayouts    int64 `json:"pending_payouts"`
+	PaidPayouts       int64 `json:"paid_payouts"`
+	TotalCoupons      int64 `json:"total_coupons"`
+	ActiveCoupons     int64 `json:"active_coupons"`
 }
 
 func (s *DashboardService) PartnerDashboard(ctx context.Context, partnerID uint) (*PartnerDashboard, error) {
@@ -157,16 +157,16 @@ func (s *DashboardService) WorkerDashboard(ctx context.Context, workerID uint) (
 // ── Admin dashboard ───────────────────────────────────────────
 
 type AdminDashboard struct {
-	TotalUsers       int64 `json:"total_users"`
-	TotalPartners    int64 `json:"total_partners"`
-	TotalOrders      int64 `json:"total_orders"`
-	RevenueCents     int64 `json:"revenue_cents"`
-	PendingPayouts   int64 `json:"pending_payouts"`
+	TotalUsers        int64 `json:"total_users"`
+	TotalPartners     int64 `json:"total_partners"`
+	TotalOrders       int64 `json:"total_orders"`
+	RevenueCents      int64 `json:"revenue_cents"`
+	PendingPayouts    int64 `json:"pending_payouts"`
 	PayoutAmountCents int64 `json:"payout_amount_cents"`
-	OpenTickets      int64 `json:"open_tickets"`
-	PendingServices  int64 `json:"pending_services"`
-	PendingCoupons   int64 `json:"pending_coupons"`
-	PendingUpgrades  int64 `json:"pending_upgrades"`
+	OpenTickets       int64 `json:"open_tickets"`
+	PendingServices   int64 `json:"pending_services"`
+	PendingCoupons    int64 `json:"pending_coupons"`
+	PendingUpgrades   int64 `json:"pending_upgrades"`
 }
 
 func (s *DashboardService) AdminDashboard(ctx context.Context) (*AdminDashboard, error) {
@@ -212,8 +212,8 @@ func (s *DashboardService) AdminDashboard(ctx context.Context) (*AdminDashboard,
 	s.db.WithContext(ctx).Raw(`SELECT COUNT(*) AS pending_upgrades FROM upgrade_requests WHERE status = 'pending'`).Scan(&misc)
 	s.db.WithContext(ctx).Raw(`SELECT COUNT(*) AS open_tickets FROM tickets WHERE status = 'open'`).Scan(&misc)
 	d.PendingServices = misc.PendingServices
-	d.PendingCoupons  = misc.PendingCoupons
+	d.PendingCoupons = misc.PendingCoupons
 	d.PendingUpgrades = misc.PendingUpgrades
-	d.OpenTickets     = misc.OpenTickets
+	d.OpenTickets = misc.OpenTickets
 	return &d, nil
 }

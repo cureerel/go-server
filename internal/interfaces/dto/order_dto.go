@@ -1,22 +1,28 @@
 // internal/interfaces/dto/order_dto.go
 package dto
 
-// ── Requests
+// Requests
 
-type CreateOrderRequest struct {
-	ServiceID   uint   `json:"service_id"   binding:"required,min=1"`
+type AddToCartRequest struct {
+	ProductID *uint `json:"product_id"`
+	ServiceID *uint `json:"service_id"`
+	Quantity  int   `json:"quantity" binding:"required,min=1"`
+}
+
+type CheckoutRequest struct {
 	CouponCode  string `json:"coupon_code"`
 	AffiliateID *uint  `json:"affiliate_id"`
 }
 
-type UpdateOrderStatusRequest struct {
-	Status string `json:"status" binding:"required,oneof=pending confirmed cancelled completed"`
+type UpdateDeliveryStatusRequest struct {
+	DeliveryStatus string `json:"delivery_status" binding:"required,oneof=created in_progress pending completed review"`
 }
 
-// ── Responses 
+// Responses
 
 type OrderItemResponse struct {
 	ID        uint    `json:"id"`
+	ProductID *uint   `json:"product_id,omitempty"`
 	ServiceID *uint   `json:"service_id,omitempty"`
 	Title     string  `json:"title"`
 	Quantity  int     `json:"quantity"`
@@ -25,17 +31,17 @@ type OrderItemResponse struct {
 }
 
 type OrderResponse struct {
-	ID              uint                `json:"id"`
-	UserID          uint                `json:"user_id"`
-	ServiceID       *uint               `json:"service_id,omitempty"`
-	Status          string              `json:"status"`
-	TotalCents      int64               `json:"total_cents"`
-	TotalUSD        float64             `json:"total_usd"`
-	Currency        string              `json:"currency"`
-	PaymentProvider string              `json:"payment_provider,omitempty"`
-	Items           []OrderItemResponse `json:"items"`
-	CreatedAt       string              `json:"created_at"`
-	UpdatedAt       string              `json:"updated_at"`
+	ID             uint                `json:"id"`
+	UserID         uint                `json:"user_id"`
+	Status         string              `json:"status"`
+	DeliveryStatus string              `json:"delivery_status"`
+	TotalCents     int64               `json:"total_cents"`
+	TotalUSD       float64             `json:"total_usd"`
+	Currency       string              `json:"currency"`
+	PaymentID      string              `json:"payment_id,omitempty"`
+	Items          []OrderItemResponse `json:"items"`
+	CreatedAt      string              `json:"created_at"`
+	UpdatedAt      string              `json:"updated_at"`
 }
 
 type OrderListResponse struct {

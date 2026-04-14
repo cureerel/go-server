@@ -9,15 +9,15 @@ import (
 )
 
 type Service struct {
-	ID            uint           `gorm:"primaryKey"`
-	OwnerID       uint           `gorm:"not null;index"`
-	Title         string         `gorm:"not null;size:200"`
-	Description   string         `gorm:"type:text"`
-	PriceUSDCents int64          `gorm:"column:price_usd_cents;not null"`
-	Status        string         `gorm:"default:'pending';size:20;index"`
-	CoverImageURL string         `gorm:"column:cover_image_url;type:text"`
-	CoverImageKey string         `gorm:"column:cover_image_key;type:text"`
-	ViewsTotal    int64          `gorm:"column:views_total;default:0"`
+	ID            uint   `gorm:"primaryKey"`
+	OwnerID       uint   `gorm:"not null;index"`
+	Title         string `gorm:"not null;size:200"`
+	Description   string `gorm:"type:text"`
+	PriceUSDCents int64  `gorm:"column:price_usd_cents;not null"`
+	Status        string `gorm:"default:'pending';size:20;index"`
+	CoverImageURL string `gorm:"column:cover_image_url;type:text"`
+	CoverImageKey string `gorm:"column:cover_image_key;type:text"`
+	ViewsTotal    int64  `gorm:"column:views_total;default:0"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     gorm.DeletedAt `gorm:"index"`

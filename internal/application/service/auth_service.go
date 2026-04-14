@@ -69,11 +69,9 @@ func hashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// Signup creates the user record after OTP has already been verified.
-// The handler flow is:
-//  1. POST /auth/register/init   → OTPService.SendRegisterOTP
-//  2. POST /auth/register/verify → OTPService.VerifyRegisterOTP → AuthService.Signup
-func (s *AuthService) Signup(ctx context.Context, name, email, password string) (*entity.User, error) {
+// 1. POST /auth/register/init   → OTPService.SendRegisterOTP
+// 2. POST /auth/register/verify → OTPService.VerifyRegisterOTP → AuthService.Signup
+func (s *AuthService) Signup(ctx context.Context, username, email, password string) (*entity.User, error) {
 	existing, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, apperror.NewInternal(err, "failed to check existing user")
@@ -88,12 +86,12 @@ func (s *AuthService) Signup(ctx context.Context, name, email, password string) 
 	}
 
 	user := &entity.User{
-		Name:         name,
+		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
 		Role:         entity.RoleUser,
 		IsActive:     true,
-		IsVerified:   true, // OTP already verified before this is called
+		IsVerified:   true,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -103,8 +101,7 @@ func (s *AuthService) Signup(ctx context.Context, name, email, password string) 
 	return user, nil
 }
 
-// Login authenticates and returns token pair.
-// Unverified users are blocked.
+// Login authenticates and returns token pair
 func (s *AuthService) Login(ctx context.Context, email, password string, meta LoginMeta) (*entity.AuthToken, error) {
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil || user == nil {
@@ -195,8 +192,6 @@ func hashToken(token string, key []byte) string {
 }
 
 // Refresh, Logout, LogoutAll, GetActiveSessions, ValidateAccessToken
-// are unchanged from the original — keeping them here for completeness.
-
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string, meta LoginMeta) (*entity.AuthToken, error) {
 	token, err := jwt.Parse(refreshToken, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

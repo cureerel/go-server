@@ -6,7 +6,6 @@ import (
 	"github.com/cureerel/cserver/pkg/logger"
 )
 
-
 type Deps struct {
 	AuthService       *service.AuthService
 	UserHandler       *handler.UserHandler
@@ -16,10 +15,9 @@ type Deps struct {
 	OrderHandler      *handler.OrderHandler
 	PaymentHandler    *handler.PaymentHandler
 	CouponHandler     *handler.CouponHandler
-
 	TicketHandler     *handler.TicketHandler
 	DashboardHandler  *handler.DashboardHandler
-	SuperAdminHandler *handler.AdminHandler
+	AdminHandler      *handler.AdminHandler
 	UploadHandler     *handler.UploadHandler
 	MembershipHandler *handler.MembershipHandler
 	PGHandler         *handler.PaymentGatewayHandler

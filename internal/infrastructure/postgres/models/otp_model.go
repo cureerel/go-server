@@ -2,8 +2,8 @@
 package models
 
 import (
-	"time"
 	"github.com/cureerel/cserver/internal/domain/entity"
+	"time"
 )
 
 type OTP struct {

@@ -8,12 +8,12 @@ import (
 )
 
 type WebhookEvent struct {
-	ID        string    `gorm:"primaryKey;size:100"`
-	Provider  string    `gorm:"not null;size:50"`
-	EventType string    `gorm:"not null;size:100"`
-	Payload   []byte    `gorm:"type:bytea"`
-	Signature string    `gorm:"size:255"`
-	Processed bool      `gorm:"default:false"`
+	ID        string `gorm:"primaryKey;size:100"`
+	Provider  string `gorm:"not null;size:50"`
+	EventType string `gorm:"not null;size:100"`
+	Payload   []byte `gorm:"type:bytea"`
+	Signature string `gorm:"size:255"`
+	Processed bool   `gorm:"default:false"`
 	CreatedAt time.Time
 }
 

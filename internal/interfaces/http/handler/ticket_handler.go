@@ -56,9 +56,7 @@ func (h *TicketHandler) GetMine(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.TicketListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-
-
-// GET /api/tickets — 
+// GET /api/tickets —
 func (h *TicketHandler) GetAll(c *gin.Context) {
 	page, limit := paginate(c)
 	status := c.Query("status")
@@ -74,8 +72,6 @@ func (h *TicketHandler) GetAll(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, dto.TicketListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
-
-
 
 // POST /api/tickets/:id/resolve
 func (h *TicketHandler) Resolve(c *gin.Context) {
@@ -147,7 +143,7 @@ func (h *TicketHandler) GetMessages(c *gin.Context) {
 	respond(c, list)
 }
 
-// mappers 
+// mappers
 
 func toTicketResponse(t *entity.Ticket) dto.TicketResponse {
 	r := dto.TicketResponse{

@@ -54,7 +54,6 @@ func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
 
 //	user(1) < partner(2)  < admin(3)
 
-
 func RoleMiddleware(minRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleIface, exists := c.Get("role")
@@ -87,7 +86,6 @@ func RoleMiddleware(minRole string) gin.HandlerFunc {
 	}
 }
 
-
 func SelfOrRoleMiddleware(minRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenIDIface, _ := c.Get("user_id")
@@ -114,7 +112,6 @@ func SelfOrRoleMiddleware(minRole string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 func OwnerOrAdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

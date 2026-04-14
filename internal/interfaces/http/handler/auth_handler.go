@@ -70,7 +70,7 @@ func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 	}
 
 	// Step 2: create user (OTP already verified, is_verified=true)
-	user, err := h.authService.Signup(c.Request.Context(), req.Name, req.Email, req.Password)
+	user, err := h.authService.Signup(c.Request.Context(), req.Username, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -86,9 +86,9 @@ func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 		// User created but login failed — not critical, tell them to login manually
 		c.JSON(http.StatusCreated, gin.H{
 			"data": dto.SignupResponse{
-				ID:    user.ID,
-				Name:  user.Name,
-				Email: user.Email,
+				ID:       user.ID,
+				Username: user.Username,
+				Email:    user.Email,
 			},
 			"message": "Account created. Please log in.",
 		})
@@ -106,7 +106,7 @@ func (h *AuthHandler) RegisterVerify(c *gin.Context) {
 	})
 }
 
-// ── Password Reset 
+// ── Password Reset
 
 // PasswordResetInit godoc
 // POST /api/auth/password/reset/init
@@ -145,7 +145,7 @@ func (h *AuthHandler) PasswordResetVerify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully. Please log in."})
 }
 
-// ── Change Password (authenticated) 
+// ── Change Password (authenticated)
 
 // ChangePassword godoc
 // POST /api/auth/password/change
@@ -176,7 +176,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully."})
 }
 
-//  Existing handlers 
+//  Existing handlers
 
 func (h *AuthHandler) Signup(c *gin.Context) {
 	var req dto.SignupRequest
@@ -184,16 +184,16 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	user, err := h.authService.Signup(c.Request.Context(), req.Name, req.Email, req.Password)
+	user, err := h.authService.Signup(c.Request.Context(), req.Username, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{
 		"data": dto.SignupResponse{
-			ID:    user.ID,
-			Name:  user.Name,
-			Email: user.Email,
+			ID:       user.ID,
+			Username: user.Username,
+			Email:    user.Email,
 		},
 	})
 }

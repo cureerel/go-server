@@ -18,9 +18,13 @@ func NewOrderHandler(orderSvc *service.OrderService) *OrderHandler {
 	return &OrderHandler{orderSvc: orderSvc}
 }
 
-// POST /api/orders — any authenticated user
+// POST /api/orders — coin purchase (service only for now)
 func (h *OrderHandler) Create(c *gin.Context) {
-	var req dto.CreateOrderRequest
+	var req struct {
+		ServiceID   uint   `json:"service_id" binding:"required,min=1"`
+		CouponCode  string `json:"coupon_code"`
+		AffiliateID *uint  `json:"affiliate_id"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -34,19 +38,17 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	order, err := h.orderSvc.Create(c.Request.Context(), service.CreateOrderInput{
 		UserID:      uid,
 		ServiceID:   req.ServiceID,
+		CouponCode:  req.CouponCode,
 		AffiliateID: req.AffiliateID,
 	})
 	if err != nil {
 		respondErr(c, err)
 		return
 	}
-
-	respondCreated(c, gin.H{
-		"order": toOrderResponse(order),
-	})
+	respondCreated(c, gin.H{"order": toOrderResponse(order)})
 }
 
-// GET /api/orders/me —  authenticated user
+// GET /api/orders/me — authenticated user
 func (h *OrderHandler) GetMyOrders(c *gin.Context) {
 	uid, _ := getUID(c)
 	page, limit := paginate(c)
@@ -98,23 +100,23 @@ func (h *OrderHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.OrderListResponse{Data: list, Total: total, Page: page, Limit: limit})
 }
 
-// PATCH /api/orders/:id/status — admin
-func (h *OrderHandler) UpdateStatus(c *gin.Context) {
+// PATCH /api/orders/:id/delivery — admin updates delivery lifecycle
+func (h *OrderHandler) UpdateDeliveryStatus(c *gin.Context) {
 	id, err := parseID(c, "id")
 	if err != nil {
 		respondErr(c, err)
 		return
 	}
-	var req dto.UpdateOrderStatusRequest
+	var req dto.UpdateDeliveryStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.orderSvc.UpdateStatus(c.Request.Context(), id, entity.OrderStatus(req.Status)); err != nil {
+	if err := h.orderSvc.UpdateDeliveryStatus(c.Request.Context(), id, entity.DeliveryStatus(req.DeliveryStatus)); err != nil {
 		respondErr(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "order status updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "delivery status updated"})
 }
 
 // mapper
@@ -124,6 +126,7 @@ func toOrderResponse(o *entity.Order) dto.OrderResponse {
 	for i, item := range o.Items {
 		items[i] = dto.OrderItemResponse{
 			ID:        item.ID,
+			ProductID: item.ProductID,
 			ServiceID: item.ServiceID,
 			Title:     item.Title,
 			Quantity:  item.Quantity,
@@ -132,16 +135,16 @@ func toOrderResponse(o *entity.Order) dto.OrderResponse {
 		}
 	}
 	return dto.OrderResponse{
-		ID:              o.ID,
-		UserID:          o.UserID,
-		ServiceID:       o.ServiceID,
-		Status:          string(o.Status),
-		TotalCents:      o.TotalCents,
-		TotalUSD:        o.TotalUSD(),
-		Currency:        o.Currency,
-		PaymentProvider: o.PaymentProvider,
-		Items:           items,
-		CreatedAt:       o.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:       o.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:             o.ID,
+		UserID:         o.UserID,
+		Status:         string(o.Status),
+		DeliveryStatus: string(o.DeliveryStatus),
+		TotalCents:     o.TotalCents,
+		TotalUSD:       o.TotalUSD(),
+		Currency:       o.Currency,
+		PaymentID:      o.PaymentID,
+		Items:          items,
+		CreatedAt:      o.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:      o.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }

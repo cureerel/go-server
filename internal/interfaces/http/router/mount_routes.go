@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MountRoutes registers 
+// MountRoutes registers
 func MountRoutes(r *gin.Engine, d *Deps) {
 	api := r.Group("/api")
 
@@ -25,4 +25,3 @@ func MountRoutes(r *gin.Engine, d *Deps) {
 	registerProductRoutes(api, d)
 	registerWebhookRoutes(api, d)
 }
-

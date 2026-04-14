@@ -85,7 +85,7 @@ migrate-prod: ## Apply migrations in production
 		--env production \
 		--config file://atlas.hcl
 
-# ── Code Quality ──────────────────────────────────────────────
+# ── Code Quality 
 lint: ## Run linter
 	golangci-lint run ./...
 

@@ -49,16 +49,13 @@ func CouponFromDomain(e *entity.Coupon) *Coupon {
 	}
 }
 
-
-
-
 type CouponUsage struct {
-	ID                   uint      `gorm:"primaryKey"`
-	CouponID             uint      `gorm:"not null;index"`
-	OrderID              uint      `gorm:"not null;index"`
-	UserID               uint      `gorm:"not null;index"`
-	DiscountAppliedCents int64     `gorm:"column:discount_applied_cents;default:0"`
-	CommissionUSDCents   int64     `gorm:"column:commission_usd_cents;default:0"`
+	ID                   uint  `gorm:"primaryKey"`
+	CouponID             uint  `gorm:"not null;index"`
+	OrderID              uint  `gorm:"not null;index"`
+	UserID               uint  `gorm:"not null;index"`
+	DiscountAppliedCents int64 `gorm:"column:discount_applied_cents;default:0"`
+	CommissionUSDCents   int64 `gorm:"column:commission_usd_cents;default:0"`
 	CreatedAt            time.Time
 }
 

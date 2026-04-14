@@ -53,7 +53,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.Create(c.Request.Context(), req.Name, req.Email, req.Password)
+	user, err := h.userService.Create(c.Request.Context(), req.Username, req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -82,7 +82,6 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": toUserResponse(user)})
 }
-
 
 // DELETE /users/:id
 func (h *UserHandler) DeleteUser(c *gin.Context) {
@@ -132,7 +131,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 func toUserResponse(user *entity.User) dto.UserResponse {
 	return dto.UserResponse{
 		ID:         user.ID,
-		Name:       user.Name,
+		Username:   user.Username,
 		Email:      user.Email,
 		Role:       user.Role,
 		IsActive:   user.IsActive,

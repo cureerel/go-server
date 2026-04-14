@@ -1,4 +1,4 @@
-h1:dGpdOS/oKgyBb+mmWrcXYjEVS9eoIkmYy8pG2uhLYqA=
+h1:OMIoozr1wD+YuaW61/XUHW4DZLhl5Z9c0x2YCPQV2NE=
 20260304051233_init_schema.sql h1:AqmDM7bIh0+3FepYMLdEOfx1yc+WOI+yXAh2Y9CMZOQ=
 20260304071215_add_writer_role.sql h1:hcdCkjS1k0liPn1aG7AMVgWhRYnFLxs3xOtSk0zUk44=
 20260309125137_extend_existing_tables.sql h1:80kDPuvH2NOJ0OAitztaSFLo/UdVu0ULcH7jx4GErW4=
@@ -7,3 +7,4 @@ h1:dGpdOS/oKgyBb+mmWrcXYjEVS9eoIkmYy8pG2uhLYqA=
 20260314081025_add_blog_excerpt.sql h1:qdUGi6yWTqnmK3FfQF6A1Jw2P6w4ZeBLeEhrm7VLoLo=
 20260314083856_add_published_at.sql h1:2cqZHe0xqRnRJmc0tFIh2h0L2OcINeia6ISEX0B7BFY=
 20260408140000_platform_coins_reviewer_blog.sql h1:RC2xnuNKQriMkA1vmV3rtSOebBdA/yhIBIHkHPwz2xY=
+20260414080000_refactor_single_person.sql h1:dJKEYlakvc5Vp3zeZqDv4hi/2Yi3xm7lvBGHMqLyiDo=

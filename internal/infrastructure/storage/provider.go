@@ -7,34 +7,24 @@ import (
 	"time"
 )
 
-
 type UploadInput struct {
-
 	Key string
 
-
 	Body io.Reader
-
 
 	ContentType string
 
 	Folder string
 }
 
-
 type UploadResult struct {
-
 	URL string
-
 
 	Key string
 }
 
-
 type Provider interface {
-
 	Upload(ctx context.Context, input UploadInput) (UploadResult, error)
-
 
 	Delete(ctx context.Context, key string) error
 

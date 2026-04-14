@@ -22,10 +22,9 @@ func SetupRouter(
 	orderHandler *handler.OrderHandler,
 	paymentHandler *handler.PaymentHandler,
 	couponHandler *handler.CouponHandler,
-
 	ticketHandler *handler.TicketHandler,
 	dashboardHandler *handler.DashboardHandler,
-	superadminHandler *handler.AdminHandler,
+	adminHandler *handler.AdminHandler,
 	uploadHandler *handler.UploadHandler,
 	membershipHandler *handler.MembershipHandler,
 	pgHandler *handler.PaymentGatewayHandler,

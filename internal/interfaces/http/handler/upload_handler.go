@@ -78,7 +78,7 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 
 	folder := c.DefaultQuery("folder", "general")
-	if folder != "blogs" && folder != "services" && folder != "avatars" && folder != "general" && folder != "blog_cover" {
+	if !validFolder(folder) {
 		folder = "general"
 	}
 
@@ -140,7 +140,7 @@ func sanitiseFilename(name string) string {
 
 func validFolder(f string) bool {
 	switch f {
-	case "blogs", "services", "avatars", "general":
+	case "blogs", "services", "avatars", "general", "blog_cover", "products":
 		return true
 	}
 	return false

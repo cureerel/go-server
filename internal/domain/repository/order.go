@@ -9,11 +9,10 @@ import (
 )
 
 type OrderFilter struct {
-	Page      int
-	Limit     int
-	UserID    *uint
-	Status    string
-	ServiceID *uint
+	Page   int
+	Limit  int
+	UserID *uint
+	Status string
 }
 
 type OrderRepository interface {
@@ -22,5 +21,6 @@ type OrderRepository interface {
 	GetByID(ctx context.Context, id uint) (*entity.Order, error)
 	GetAll(ctx context.Context, filter OrderFilter) ([]entity.Order, int64, error)
 	UpdateStatus(ctx context.Context, id uint, status entity.OrderStatus) error
-	AttachPaymentProvider(ctx context.Context, id uint, provider string) error
+	UpdateDeliveryStatus(ctx context.Context, id uint, status entity.DeliveryStatus) error
+	AttachPaymentID(ctx context.Context, id uint, paymentID string) error
 }

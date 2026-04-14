@@ -21,7 +21,7 @@ func NewFromEnv() (*Client, error) {
 	return &Client{APIKey: k, BaseURL: os.Getenv("DODPAYMENTS_BASE_URL")}, nil
 }
 
-// CreateCheckout is a stub 
+// CreateCheckout is a stub
 func (c *Client) CreateCheckout(amountMinor int64, currency, receipt string, metadata map[string]string) (map[string]any, error) {
 	if c == nil || c.APIKey == "" {
 		return nil, ErrNotImplemented

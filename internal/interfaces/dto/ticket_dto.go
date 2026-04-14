@@ -11,7 +11,6 @@ type SendMessageRequest struct {
 	Message string `json:"message" binding:"required,min=1"`
 }
 
-
 type TicketMessageResponse struct {
 	ID        uint   `json:"id"`
 	TicketID  uint   `json:"ticket_id"`

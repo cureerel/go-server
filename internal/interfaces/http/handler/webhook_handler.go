@@ -37,7 +37,7 @@ func (h *WebhookHandler) HandleStripe(c *gin.Context) {
 
 	if err := h.webhookService.ProcessStripeWebhook(c.Request.Context(), payload, signature); err != nil {
 		// FIX: Use proper Field struct
-		h.log.Error("Stripe webhook processing failed", 
+		h.log.Error("Stripe webhook processing failed",
 			logger.Field{Key: "error", Value: err.Error()},
 			logger.Field{Key: "path", Value: c.Request.URL.Path},
 		)

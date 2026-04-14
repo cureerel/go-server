@@ -1,4 +1,4 @@
-// internal/interfaces/http/handler/superadmin_handler.go
+// internal/interfaces/http/handler/admin_handler.go
 package handler
 
 import (
@@ -9,10 +9,10 @@ import (
 )
 
 type AdminHandler struct {
-	svc *service.SuperAdminService
+	svc *service.AdminService
 }
 
-func NewSuperAdminHandler(svc *service.SuperAdminService) *AdminHandler {
+func NewAdminHandler(svc *service.AdminService) *AdminHandler {
 	return &AdminHandler{svc: svc}
 }
 
@@ -20,7 +20,7 @@ func NewSuperAdminHandler(svc *service.SuperAdminService) *AdminHandler {
 func (h *AdminHandler) Stats(c *gin.Context) {
 	stats, err := h.svc.PlatformStats(c.Request.Context())
 	if err != nil {
-		respondErr(c, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	respond(c, stats)

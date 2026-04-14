@@ -23,7 +23,6 @@ func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error
 		return err
 	}
 	order.ID = m.ID
-	// back-fill item IDs
 	for i, item := range m.Items {
 		order.Items[i].ID = item.ID
 	}
@@ -68,9 +67,6 @@ func (r *orderRepository) GetAll(ctx context.Context, filter repository.OrderFil
 	if filter.Status != "" {
 		q = q.Where("status = ?", filter.Status)
 	}
-	if filter.ServiceID != nil {
-		q = q.Where("service_id = ?", *filter.ServiceID)
-	}
 	q = q.Order("created_at DESC")
 
 	if err := q.Count(&total).Error; err != nil {
@@ -91,7 +87,12 @@ func (r *orderRepository) UpdateStatus(ctx context.Context, id uint, status enti
 		Where("id = ?", id).Update("status", string(status)).Error
 }
 
-func (r *orderRepository) AttachPaymentProvider(ctx context.Context, id uint, provider string) error {
+func (r *orderRepository) UpdateDeliveryStatus(ctx context.Context, id uint, status entity.DeliveryStatus) error {
 	return r.db.WithContext(ctx).Model(&models.Order{}).
-		Where("id = ?", id).Update("payment_provider", provider).Error
+		Where("id = ?", id).Update("delivery_status", string(status)).Error
+}
+
+func (r *orderRepository) AttachPaymentID(ctx context.Context, id uint, paymentID string) error {
+	return r.db.WithContext(ctx).Model(&models.Order{}).
+		Where("id = ?", id).Update("payment_id", paymentID).Error
 }

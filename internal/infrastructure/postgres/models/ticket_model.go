@@ -43,10 +43,10 @@ func TicketFromDomain(e *entity.Ticket) *Ticket {
 // ── TicketMessage ─────────────────────────────────────────────
 
 type TicketMessage struct {
-	ID        uint      `gorm:"primaryKey"`
-	TicketID  uint      `gorm:"not null;index"`
-	SenderID  uint      `gorm:"not null;index"`
-	Message   string    `gorm:"type:text;not null"`
+	ID        uint   `gorm:"primaryKey"`
+	TicketID  uint   `gorm:"not null;index"`
+	SenderID  uint   `gorm:"not null;index"`
+	Message   string `gorm:"type:text;not null"`
 	CreatedAt time.Time
 }
 

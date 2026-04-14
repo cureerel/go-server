@@ -125,7 +125,7 @@ func (s *WebhookService) handleRazorpayRefund(ctx context.Context, event map[str
 	return s.createPayment(ctx, "razorpay", entity.PaymentRefunded, event)
 }
 
-func (s *WebhookService) createPayment(ctx context.Context, provider string, status entity.PaymentStatus, event map[string]interface{}) error {
+func (s *WebhookService) createPayment(ctx context.Context, provider string, status entity.PaymentStatus, _ map[string]interface{}) error {
 	payment := &entity.Payment{
 		ID:        fmt.Sprintf("pay_%d", time.Now().UnixNano()),
 		Provider:  entity.PaymentProvider(provider),

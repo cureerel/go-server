@@ -8,21 +8,21 @@ import (
 )
 
 type Payment struct {
-	ID                 string     `gorm:"primaryKey;size:64"`
-	OrderID            uint       `gorm:"not null;index"`
-	UserID             uint       `gorm:"not null;index"`
-	AmountCents        int64      `gorm:"column:amount_cents;not null"`
-	Currency           string     `gorm:"size:10;default:'USD'"`
-	Status             string     `gorm:"default:'pending';size:20;index"`
-	Provider           string     `gorm:"not null;size:20"`
-	ProviderTxnID      string     `gorm:"column:provider_txn_id;size:128"`
-	ProviderPaymentID  string     `gorm:"column:provider_payment_id;size:128"`
-	CustomerEmail      string     `gorm:"column:customer_email;size:100"`
-	Description        string     `gorm:"type:text"`
-	RefundID           string     `gorm:"column:refund_id;size:128"`
-	RefundedAt         *time.Time `gorm:"column:refunded_at"`
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                string     `gorm:"primaryKey;size:64"`
+	OrderID           uint       `gorm:"not null;index"`
+	UserID            uint       `gorm:"not null;index"`
+	AmountCents       int64      `gorm:"column:amount_cents;not null"`
+	Currency          string     `gorm:"size:10;default:'USD'"`
+	Status            string     `gorm:"default:'pending';size:20;index"`
+	Provider          string     `gorm:"not null;size:20"`
+	ProviderTxnID     string     `gorm:"column:provider_txn_id;size:128"`
+	ProviderPaymentID string     `gorm:"column:provider_payment_id;size:128"`
+	CustomerEmail     string     `gorm:"column:customer_email;size:100"`
+	Description       string     `gorm:"type:text"`
+	RefundID          string     `gorm:"column:refund_id;size:128"`
+	RefundedAt        *time.Time `gorm:"column:refunded_at"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (Payment) TableName() string { return "payments" }

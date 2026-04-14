@@ -19,8 +19,6 @@ func NewServiceService(repo repository.ServiceRepository) *ServiceService {
 	return &ServiceService{repo: repo}
 }
 
-// ── Input types ───────────────────────────────────────────────
-
 type CreateServiceInput struct {
 	OwnerID       uint
 	Title         string
@@ -30,25 +28,14 @@ type CreateServiceInput struct {
 	CoverImageKey string
 }
 
-type UpdateServiceInput struct {
-	Title         string
-	Description   string
-	PriceUSDCents int64
-	CoverImageURL string
-	CoverImageKey string
-}
-
-// ── CRUD ──────────────────────────────────────────────────────
-
-// Create submits a new service with status=pending.
-// Admin must approve before it becomes live.
+// Create — admin creates a service, starts as live immediately.
 func (s *ServiceService) Create(ctx context.Context, in CreateServiceInput) (*entity.Service, error) {
 	svc := &entity.Service{
 		OwnerID:       in.OwnerID,
 		Title:         in.Title,
 		Description:   in.Description,
 		PriceUSDCents: in.PriceUSDCents,
-		Status:        entity.ServiceStatusPending,
+		Status:        entity.ServiceStatusLive,
 		CoverImageURL: in.CoverImageURL,
 		CoverImageKey: in.CoverImageKey,
 	}
@@ -69,7 +56,6 @@ func (s *ServiceService) GetByID(ctx context.Context, id uint) (*entity.Service,
 	return svc, nil
 }
 
-// GetAll returns services filtered by status (default "live" for public).
 func (s *ServiceService) GetAll(ctx context.Context, page, limit int, status, search string) ([]entity.Service, int64, error) {
 	if page < 1 {
 		page = 1
@@ -85,8 +71,47 @@ func (s *ServiceService) GetAll(ctx context.Context, page, limit int, status, se
 	})
 }
 
+// Delete — admin removes a service.
+func (s *ServiceService) Delete(ctx context.Context, id, callerID uint, callerRole string) error {
+	svc, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return apperror.NewInternal(err, "failed to fetch service")
+	}
+	if svc == nil {
+		return apperror.NewNotFound("service not found")
+	}
+	caller := &entity.User{ID: callerID, Role: callerRole}
+	if !caller.HasRole(entity.RoleAdmin) {
+		return apperror.NewForbidden("admin only")
+	}
+	return s.repo.Delete(ctx, id)
+}
 
-// ── Analytics ─────────────────────────────────────────────────
+// SetLive — admin sets a service live.
+func (s *ServiceService) SetLive(ctx context.Context, id, callerID uint) error {
+	svc, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return apperror.NewInternal(err, "failed to fetch service")
+	}
+	if svc == nil {
+		return apperror.NewNotFound("service not found")
+	}
+	return s.repo.UpdateStatus(ctx, id, entity.ServiceStatusLive)
+}
+
+// Pause — admin pauses a service.
+func (s *ServiceService) Pause(ctx context.Context, id, callerID uint, callerRole string) error {
+	svc, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return apperror.NewInternal(err, "failed to fetch service")
+	}
+	if svc == nil {
+		return apperror.NewNotFound("service not found")
+	}
+	return s.repo.UpdateStatus(ctx, id, entity.ServiceStatusPaused)
+}
+
+// Analytics
 
 func (s *ServiceService) RecordView(ctx context.Context, serviceID uint, ip, ua string) error {
 	h := sha256.Sum256([]byte(fmt.Sprintf("%s|%s", ip, ua)))

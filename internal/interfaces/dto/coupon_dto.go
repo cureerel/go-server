@@ -4,13 +4,13 @@ package dto
 import "time"
 
 type CreateCouponRequest struct {
-	Code             string   `json:"code"              binding:"required,min=3,max=32"`
-	Type             string   `json:"type"              binding:"required,oneof=discount affiliate both"`
-	DiscountUSDCents int64    `json:"discount_usd_cents"`
-	MaxDiscountCents int64    `json:"max_discount_cents"`
-	CommissionPct    float64  `json:"commission_pct"`
-	UsageLimit       *int     `json:"usage_limit"`
-	ExpiresAt        *string  `json:"expires_at"`
+	Code             string  `json:"code"              binding:"required,min=3,max=32"`
+	Type             string  `json:"type"              binding:"required,oneof=discount affiliate both"`
+	DiscountUSDCents int64   `json:"discount_usd_cents"`
+	MaxDiscountCents int64   `json:"max_discount_cents"`
+	CommissionPct    float64 `json:"commission_pct"`
+	UsageLimit       *int    `json:"usage_limit"`
+	ExpiresAt        *string `json:"expires_at"`
 }
 
 type ValidateCouponRequest struct {

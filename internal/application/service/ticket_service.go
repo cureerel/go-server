@@ -54,22 +54,28 @@ func (s *TicketService) GetByID(ctx context.Context, id uint) (*entity.Ticket, e
 }
 
 func (s *TicketService) GetMine(ctx context.Context, userID uint, page, limit int, status string) ([]entity.Ticket, int64, error) {
-	if page < 1 { page = 1 }
-	if limit < 1 || limit > 100 { limit = 10 }
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 	return s.ticketRepo.GetAll(ctx, repository.TicketFilter{
 		Page: page, Limit: limit, UserID: &userID, Status: status,
 	})
 }
 
 func (s *TicketService) GetAll(ctx context.Context, page, limit int, status, priority string) ([]entity.Ticket, int64, error) {
-	if page < 1 { page = 1 }
-	if limit < 1 || limit > 100 { limit = 10 }
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 	return s.ticketRepo.GetAll(ctx, repository.TicketFilter{
 		Page: page, Limit: limit, Status: status, Priority: priority,
 	})
 }
-
-
 
 func (s *TicketService) Resolve(ctx context.Context, ticketID uint) error {
 	t, err := s.ticketRepo.GetByID(ctx, ticketID)
@@ -123,7 +129,7 @@ func (s *TicketService) GetMessages(ctx context.Context, ticketID, callerID uint
 		return nil, apperror.NewNotFound("ticket not found")
 	}
 	u := &entity.User{Role: callerRole}
-	if t.UserID != callerID && !u.HasRole(entity.RoleWorker) {
+	if t.UserID != callerID && !u.HasRole(entity.RolePartner) {
 		return nil, apperror.NewForbidden("access denied")
 	}
 	msgs, err := s.ticketRepo.GetMessages(ctx, ticketID)

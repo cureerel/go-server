@@ -67,9 +67,8 @@ func (r *blogRepository) GetAll(ctx context.Context, filter repository.BlogFilte
 	if filter.Search != "" {
 		q = q.Where("title ILIKE ?", "%"+filter.Search+"%")
 	}
-	// Tags stored as comma-separated string — partial ILIKE match covers any tag
-	if filter.Tags != "" {
-		q = q.Where("tags ILIKE ?", "%"+filter.Tags+"%")
+	if filter.Tag != "" {
+		q = q.Where("tag ILIKE ?", "%"+filter.Tag+"%")
 	}
 	if filter.AuthorID != nil {
 		q = q.Where("author_id = ?", *filter.AuthorID)
@@ -114,12 +113,9 @@ func (r *blogRepository) Delete(ctx context.Context, id uint) error {
 func (r *blogRepository) IncrementViews(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&models.Blog{}).
 		Where("id = ?", id).
-		UpdateColumn("views_total", gorm.Expr("views_total + 1")).Error
+		UpdateColumn("views", gorm.Expr("views + 1")).Error
 }
 
-// RecordView inserts a unique (blog_id, visitor_hash, viewed_date) row.
-// Returns true only on first view of the day for that visitor.
-// Increments views_total on the blog row when a new view is recorded.
 func (r *blogRepository) RecordView(ctx context.Context, blogID uint, visitorHash string) (bool, error) {
 	today := time.Now().UTC().Format("2006-01-02")
 	result := r.db.WithContext(ctx).Exec(`
@@ -138,52 +134,6 @@ func (r *blogRepository) RecordView(ctx context.Context, blogID uint, visitorHas
 	return false, nil
 }
 
-func (r *blogRepository) AddCoAuthor(ctx context.Context, blogID, userID uint) error {
-	if blogID == 0 || userID == 0 {
-		return nil
-	}
-	var b models.Blog
-	if err := r.db.WithContext(ctx).Select("author_id").First(&b, blogID).Error; err != nil {
-		return err
-	}
-	if b.AuthorID == userID {
-		return nil
-	}
-	return r.db.WithContext(ctx).Exec(`
-		INSERT INTO blog_authors (blog_id, user_id, role, created_at)
-		VALUES (?, ?, 'co_author', NOW())
-		ON CONFLICT (blog_id, user_id) DO NOTHING`, blogID, userID).Error
-}
-
-func (r *blogRepository) ListCoAuthors(ctx context.Context, blogID uint) ([]entity.BlogAuthor, error) {
-	var rows []models.BlogAuthor
-	if err := r.db.WithContext(ctx).Where("blog_id = ?", blogID).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	out := make([]entity.BlogAuthor, len(rows))
-	for i, row := range rows {
-		out[i] = entity.BlogAuthor{BlogID: row.BlogID, UserID: row.UserID, Role: row.Role}
-	}
-	return out, nil
-}
-
-func (r *blogRepository) UserCanEditBlog(ctx context.Context, blogID, userID uint) (bool, error) {
-	var b models.Blog
-	if err := r.db.WithContext(ctx).Select("author_id").First(&b, blogID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	if b.AuthorID == userID {
-		return true, nil
-	}
-	var n int64
-	err := r.db.WithContext(ctx).Model(&models.BlogAuthor{}).
-		Where("blog_id = ? AND user_id = ?", blogID, userID).Count(&n).Error
-	return n > 0, err
-}
-
 func (r *blogRepository) ListByStatus(ctx context.Context, status string, page, limit int) ([]entity.Blog, int64, error) {
 	if page < 1 {
 		page = 1
@@ -198,7 +148,7 @@ func (r *blogRepository) ListByStatus(ctx context.Context, status string, page, 
 		return nil, 0, err
 	}
 	offset := (page - 1) * limit
-	if err := q.Order("submitted_for_review_at DESC NULLS LAST").Offset(offset).Limit(limit).Find(&ms).Error; err != nil {
+	if err := q.Order("created_at DESC").Offset(offset).Limit(limit).Find(&ms).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]entity.Blog, len(ms))

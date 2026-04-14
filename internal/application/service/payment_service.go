@@ -4,11 +4,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/cureerel/cserver/internal/domain/repository"
 	"github.com/cureerel/cserver/pkg/apperror"
+	"github.com/cureerel/cserver/pkg/idgen"
 )
 
 type PaymentService struct {
@@ -23,8 +23,8 @@ func NewPaymentService(paymentRepo repository.PaymentRepository, orderRepo repos
 // InitPayment creates a pending payment record for an order.
 // Called right after order creation, before the provider is contacted.
 func (s *PaymentService) InitPayment(ctx context.Context, order *entity.Order, provider entity.PaymentProvider, customerEmail string) (*entity.Payment, error) {
-	// Generate a deterministic payment ID: provider-orderID-timestamp
-	id := fmt.Sprintf("%s-%d-%d", string(provider), order.ID, time.Now().UnixMilli())
+	// Generate a unique payment ID
+	id := idgen.New(idgen.PrefixPayment)
 
 	payment := &entity.Payment{
 		ID:            id,
@@ -40,8 +40,9 @@ func (s *PaymentService) InitPayment(ctx context.Context, order *entity.Order, p
 	if err := s.paymentRepo.Create(ctx, payment); err != nil {
 		return nil, apperror.NewInternal(err, "failed to create payment record")
 	}
-	// Attach provider to order
-	_ = s.orderRepo.AttachPaymentProvider(ctx, order.ID, string(provider))
+
+	// Attach payment ID to order
+	_ = s.orderRepo.AttachPaymentID(ctx, order.ID, id)
 	return payment, nil
 }
 
@@ -69,8 +70,12 @@ func (s *PaymentService) GetByOrderID(ctx context.Context, orderID uint) (*entit
 
 // GetAll returns all payments (admin use).
 func (s *PaymentService) GetAll(ctx context.Context, page, limit int, status string) ([]entity.Payment, int64, error) {
-	if page < 1 { page = 1 }
-	if limit < 1 || limit > 100 { limit = 10 }
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 	return s.paymentRepo.GetAll(ctx, repository.PaymentFilter{
 		Page: page, Limit: limit, Status: status,
 	})
@@ -89,20 +94,19 @@ func (s *PaymentService) MarkCompleted(ctx context.Context, id string) error {
 	if err := s.paymentRepo.UpdateStatus(ctx, id, entity.PaymentCompleted); err != nil {
 		return apperror.NewInternal(err, "failed to update payment status")
 	}
-	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderConfirmed)
+	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderPaid)
 	return nil
 }
 
 // MarkFailed is called when provider reports failure.
 func (s *PaymentService) MarkFailed(ctx context.Context, id string) error {
-	p, err := s.GetByID(ctx, id)
-	if err != nil {
+	if _, err := s.GetByID(ctx, id); err != nil {
 		return err
 	}
 	if err := s.paymentRepo.UpdateStatus(ctx, id, entity.PaymentFailed); err != nil {
 		return apperror.NewInternal(err, "failed to update payment status")
 	}
-	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderCancelled)
+	// Keep as in_cart so user can retry
 	return nil
 }
 
@@ -118,7 +122,7 @@ func (s *PaymentService) Refund(ctx context.Context, id string, refundID string)
 	if err := s.paymentRepo.MarkRefunded(ctx, id, refundID); err != nil {
 		return apperror.NewInternal(err, "failed to mark refund")
 	}
-	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderCancelled)
+	_ = s.orderRepo.UpdateStatus(ctx, p.OrderID, entity.OrderRefunded)
 	return nil
 }
 

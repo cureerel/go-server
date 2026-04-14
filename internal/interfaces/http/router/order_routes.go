@@ -13,13 +13,13 @@ func registerOrderRoutes(rg *gin.RouterGroup, d *Deps) {
 		orders.POST("", d.OrderHandler.Create)
 		orders.GET("/me", d.OrderHandler.GetMyOrders)
 		orders.GET("/:id", d.OrderHandler.GetByID)
-		
-		// Admin operations
+
+		// Admin
 		admin := orders.Group("")
 		admin.Use(middleware.RoleMiddleware(entity.RoleAdmin))
 		{
 			admin.GET("", d.OrderHandler.GetAll)
-			admin.PATCH("/:id/status", d.OrderHandler.UpdateStatus)
+			admin.PATCH("/:id/delivery", d.OrderHandler.UpdateDeliveryStatus)
 		}
 	}
 }

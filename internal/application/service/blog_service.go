@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-
 	"github.com/cureerel/cserver/internal/domain/entity"
 	"github.com/cureerel/cserver/internal/domain/repository"
 	"github.com/cureerel/cserver/pkg/apperror"
@@ -15,9 +14,9 @@ import (
 )
 
 type BlogService struct {
-	blogRepo         repository.BlogRepository
-	coinRepo         repository.CoinRepository
-	membershipRepo   repository.MembershipRepository
+	blogRepo       repository.BlogRepository
+	coinRepo       repository.CoinRepository
+	membershipRepo repository.MembershipRepository
 }
 
 func NewBlogService(
@@ -32,36 +31,38 @@ func NewBlogService(
 	}
 }
 
-// Input types 
+// Input types
 
 type CreateBlogInput struct {
-	Title         string
-	Content       string
-	Excerpt       string
-	Status        string
-	AuthorID      uint
-	Tags          string
-	CoverImageURL string
-	CoverImageKey string
-	AccessType    string
-	CoinPrice     int64
-	CoAuthorIDs   []uint
+	Title        string
+	Content      string
+	Keyword      string
+	Tag          string
+	Excerpt      string
+	Thumbnail    string
+	ThumbnailKey string
+	Status       string
+	AccessType   string
+	CoinPrice    int64
 }
 
 type UpdateBlogInput struct {
-	ID            uint
-	CallerID      uint
-	CallerRole    string
-	Title         *string
-	Content       *string
-	Excerpt       *string 
-	Status        *string
-	Tags          *string
-	CoverImageURL *string
-	CoverImageKey *string
+	ID           uint
+	CallerID     uint
+	CallerRole   string
+	Title        *string
+	Content      *string
+	Keyword      *string
+	Tag          *string
+	Excerpt      *string
+	Thumbnail    *string
+	ThumbnailKey *string
+	Status       *string
+	AccessType   *string
+	CoinPrice    *int64
 }
 
-// ── CRUD ──────────────────────────────────────────────────────
+// CRUD
 
 func (s *BlogService) Create(ctx context.Context, in CreateBlogInput) (*entity.Blog, error) {
 	slug := utils.GenerateUniqueSlug(in.Title, func(candidate string) bool {
@@ -69,8 +70,14 @@ func (s *BlogService) Create(ctx context.Context, in CreateBlogInput) (*entity.B
 		return exists
 	})
 
-	// Publishing goes through review — new posts start as draft only.
+	// Admin publishes directly; default draft
 	status := entity.BlogDraft
+	if in.Status == string(entity.BlogPublished) {
+		status = entity.BlogPublished
+	} else if in.Status == string(entity.BlogArchived) {
+		status = entity.BlogArchived
+	}
+
 	at := entity.AccessFree
 	switch strings.TrimSpace(in.AccessType) {
 	case "member":
@@ -84,26 +91,20 @@ func (s *BlogService) Create(ctx context.Context, in CreateBlogInput) (*entity.B
 	}
 
 	blog := &entity.Blog{
-		Title:         in.Title,
-		Slug:          slug,
-		Content:       in.Content,
-		Excerpt:       in.Excerpt,
-		AuthorID:      in.AuthorID,
-		Tags:          in.Tags,
-		Status:        status,
-		AccessType:    at,
-		CoinPrice:     coinPrice,
-		CoverImageURL: in.CoverImageURL,
-		CoverImageKey: in.CoverImageKey,
+		Title:        in.Title,
+		Slug:         slug,
+		Content:      in.Content,
+		Keyword:      in.Keyword,
+		Tag:          in.Tag,
+		Excerpt:      in.Excerpt,
+		Thumbnail:    in.Thumbnail,
+		ThumbnailKey: in.ThumbnailKey,
+		Status:       status,
+		AccessType:   at,
+		CoinPrice:    coinPrice,
 	}
 	if err := s.blogRepo.Create(ctx, blog); err != nil {
 		return nil, apperror.NewInternal(err, "failed to create blog")
-	}
-	for _, uid := range in.CoAuthorIDs {
-		if uid == 0 || uid == in.AuthorID {
-			continue
-		}
-		_ = s.blogRepo.AddCoAuthor(ctx, blog.ID, uid)
 	}
 	return blog, nil
 }
@@ -142,7 +143,7 @@ func (s *BlogService) GetAll(ctx context.Context, page, limit int, search, tag s
 		Limit:  limit,
 		Status: "published",
 		Search: search,
-		Tags:   tag,
+		Tag:    tag,
 	})
 }
 
@@ -168,20 +169,17 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 		return nil, apperror.NewNotFound("blog not found")
 	}
 
+	// Admin only
 	caller := &entity.User{ID: in.CallerID, Role: in.CallerRole}
-	can, err := s.blogRepo.UserCanEditBlog(ctx, in.ID, in.CallerID)
-	if err != nil {
-		return nil, apperror.NewInternal(err, "failed to check blog access")
-	}
-	if !can && !caller.HasRole(entity.RoleAdmin) {
-		return nil, apperror.NewForbidden("you don't own this blog")
+	if !caller.HasRole(entity.RoleAdmin) {
+		return nil, apperror.NewForbidden("only admin can edit blogs")
 	}
 
 	if in.Title != nil && *in.Title != "" {
 		blog.Title = *in.Title
-		currentSlug := blog.Slug
+		cur := blog.Slug
 		blog.Slug = utils.GenerateUniqueSlug(*in.Title, func(c string) bool {
-			if c == currentSlug {
+			if c == cur {
 				return false
 			}
 			exists, _ := s.blogRepo.SlugExists(ctx, c)
@@ -191,27 +189,39 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 	if in.Content != nil {
 		blog.Content = *in.Content
 	}
+	if in.Keyword != nil {
+		blog.Keyword = *in.Keyword
+	}
+	if in.Tag != nil {
+		blog.Tag = *in.Tag
+	}
 	if in.Excerpt != nil {
 		blog.Excerpt = *in.Excerpt
+	}
+	if in.Thumbnail != nil {
+		blog.Thumbnail = *in.Thumbnail
+	}
+	if in.ThumbnailKey != nil {
+		blog.ThumbnailKey = *in.ThumbnailKey
 	}
 	if in.Status != nil {
 		if !validBlogStatus(*in.Status) {
 			return nil, apperror.NewBadRequest("invalid blog status")
 		}
-		newSt := entity.BlogStatus(*in.Status)
-		if newSt == entity.BlogPublished && !caller.HasRole(entity.RoleAdmin) && !caller.HasRole(entity.RoleSuperAdmin) {
-			return nil, apperror.NewForbidden("publishing is done by reviewers after submit-for-review")
+		blog.Status = entity.BlogStatus(*in.Status)
+	}
+	if in.AccessType != nil {
+		switch strings.TrimSpace(*in.AccessType) {
+		case "free":
+			blog.AccessType = entity.AccessFree
+		case "member":
+			blog.AccessType = entity.AccessMember
+		case "paid_coins":
+			blog.AccessType = entity.AccessPaidCoins
 		}
-		blog.Status = newSt
 	}
-	if in.Tags != nil {
-		blog.Tags = *in.Tags
-	}
-	if in.CoverImageURL != nil {
-		blog.CoverImageURL = *in.CoverImageURL
-	}
-	if in.CoverImageKey != nil {
-		blog.CoverImageKey = *in.CoverImageKey
+	if in.CoinPrice != nil {
+		blog.CoinPrice = *in.CoinPrice
 	}
 
 	if err := s.blogRepo.Update(ctx, blog); err != nil {
@@ -220,7 +230,7 @@ func (s *BlogService) Update(ctx context.Context, in UpdateBlogInput) (*entity.B
 	return blog, nil
 }
 
-func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole string) error {
+func (s *BlogService) Delete(ctx context.Context, id uint) error {
 	blog, err := s.blogRepo.GetByID(ctx, id)
 	if err != nil {
 		return apperror.NewInternal(err, "failed to fetch blog")
@@ -228,20 +238,10 @@ func (s *BlogService) Delete(ctx context.Context, id, callerID uint, callerRole 
 	if blog == nil {
 		return apperror.NewNotFound("blog not found")
 	}
-
-	caller := &entity.User{ID: callerID, Role: callerRole}
-	can, err := s.blogRepo.UserCanEditBlog(ctx, id, callerID)
-	if err != nil {
-		return apperror.NewInternal(err, "failed to check blog access")
-	}
-	if !can && !caller.HasRole(entity.RoleAdmin) {
-		return apperror.NewForbidden("you don't own this blog")
-	}
-
 	return s.blogRepo.Delete(ctx, id)
 }
 
-//  Analytics
+// Analytics
 
 func (s *BlogService) RecordView(ctx context.Context, blogID uint, ip, ua string) error {
 	raw := fmt.Sprintf("%s|%s", ip, ua)
@@ -259,28 +259,26 @@ func (s *BlogService) GetStats(ctx context.Context, blogID uint) (int64, error) 
 	if blog == nil {
 		return 0, apperror.NewNotFound("blog not found")
 	}
-	return blog.ViewsTotal, nil
+	return blog.Views, nil
 }
 
-// ── helpers
+// helpers
+
 func validBlogStatus(s string) bool {
 	switch s {
-	case "draft", "in_review", "published", "rejected", "archived":
+	case "draft", "published", "archived":
 		return true
 	}
 	return false
 }
 
-// GetBySlugForReader 
+// GetBySlugForReader returns a published blog with access control
 func (s *BlogService) GetBySlugForReader(ctx context.Context, slug string, viewerID *uint) (*entity.Blog, error) {
 	blog, err := s.blogRepo.GetBySlug(ctx, slug)
 	if err != nil {
 		return nil, apperror.NewInternal(err, "failed to fetch blog")
 	}
-	if blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	if blog.Status != entity.BlogPublished {
+	if blog == nil || blog.Status != entity.BlogPublished {
 		return nil, apperror.NewNotFound("blog not found")
 	}
 	return s.applyReaderMask(ctx, blog, viewerID), nil
@@ -291,10 +289,7 @@ func (s *BlogService) GetByIDForReader(ctx context.Context, id uint, viewerID *u
 	if err != nil {
 		return nil, apperror.NewInternal(err, "failed to fetch blog")
 	}
-	if blog == nil {
-		return nil, apperror.NewNotFound("blog not found")
-	}
-	if blog.Status != entity.BlogPublished {
+	if blog == nil || blog.Status != entity.BlogPublished {
 		return nil, apperror.NewNotFound("blog not found")
 	}
 	return s.applyReaderMask(ctx, blog, viewerID), nil

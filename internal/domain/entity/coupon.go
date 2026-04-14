@@ -31,7 +31,6 @@ type Coupon struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
-
 type CouponUsage struct {
 	ID                   uint      `json:"id"`
 	CouponID             uint      `json:"coupon_id"`
@@ -42,8 +41,7 @@ type CouponUsage struct {
 	CreatedAt            time.Time `json:"created_at"`
 }
 
-
-
+// IsValid returns true when the coupon can be applied at checkout.
 func (c *Coupon) IsValid() bool {
 	if c.Status != CouponStatusApproved {
 		return false
@@ -57,9 +55,13 @@ func (c *Coupon) IsValid() bool {
 	return true
 }
 
+// ApplyDiscount returns the discount amount (capped at order total and MaxDiscountCents).
 func (c *Coupon) ApplyDiscount(amountCents int64) int64 {
+	if c.Type == CouponTypeAffiliate {
+		return 0 // affiliate coupons give commission, not buyer discount
+	}
 	d := c.DiscountUSDCents
-	if d > c.MaxDiscountCents {
+	if c.MaxDiscountCents > 0 && d > c.MaxDiscountCents {
 		d = c.MaxDiscountCents
 	}
 	if d > amountCents {
@@ -68,3 +70,10 @@ func (c *Coupon) ApplyDiscount(amountCents int64) int64 {
 	return d
 }
 
+// CommissionAmount returns how many cents the coupon creator earns on this order.
+func (c *Coupon) CommissionAmount(orderCents int64) int64 {
+	if c.CommissionPct <= 0 || (c.Type == CouponTypeDiscount) {
+		return 0
+	}
+	return int64(float64(orderCents) * c.CommissionPct / 100)
+}

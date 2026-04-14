@@ -14,7 +14,6 @@ type Factory struct {
 	Region Region
 }
 
-// 
 func FromEnv() *Factory {
 	r := RegionGlobal
 	if v := os.Getenv("PAYMENT_REGION"); v == "IN" {
