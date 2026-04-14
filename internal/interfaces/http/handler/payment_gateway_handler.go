@@ -2,10 +2,6 @@
 package handler
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,128 +9,68 @@ import (
 
 	"github.com/cureerel/cserver/internal/application/service"
 	"github.com/cureerel/cserver/internal/domain/entity"
-	"github.com/cureerel/cserver/internal/infrastructure/paymentgateway"
+	"github.com/cureerel/cserver/internal/infrastructure/pg"
+
+	// Register providers via side-effect imports.
+	// Add/remove providers here to enable or disable them.
+	_ "github.com/cureerel/cserver/internal/infrastructure/pg/dodo"
+	_ "github.com/cureerel/cserver/internal/infrastructure/pg/razorpay"
+	_ "github.com/cureerel/cserver/internal/infrastructure/pg/stripe"
+
 	"github.com/gin-gonic/gin"
-	rzpsdk "github.com/razorpay/razorpay-go"
-	stripe "github.com/stripe/stripe-go/v79"
-	stripesession "github.com/stripe/stripe-go/v79/checkout/session"
-	stripewebhook "github.com/stripe/stripe-go/v79/webhook"
 )
 
-// planAmountsPaise maps plan → amount in paise (INR smallest unit)
+// planAmountsPaise maps membership plan → paise (₹ × 100)
 var planAmountsPaise = map[string]int64{
-	"basic": 49900,  // ₹499
-	"pro":   149900, // ₹1499
+	"basic": 49900,
+	"pro":   149900,
 }
 
-
-// planEntityMap maps string → entity.MembershipPlan
+// planEntityMap maps plan string → entity.MembershipPlan
 var planEntityMap = map[string]entity.MembershipPlan{
 	"free":  entity.PlanFree,
 	"basic": entity.PlanBasic,
 	"pro":   entity.PlanPro,
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 
 type PaymentGatewayHandler struct {
 	membershipSvc *service.MembershipService
 	coinSvc       *service.CoinService
 	paymentSvc    *service.PaymentService
-	pgFactory     *paymentgateway.Factory
-	rzpClient     *rzpsdk.Client
+	pgFactory     *pg.Factory
 }
 
-func NewPaymentGatewayHandler(membershipSvc *service.MembershipService, coinSvc *service.CoinService, paymentSvc *service.PaymentService) *PaymentGatewayHandler {
-	stripe.Key = os.Getenv("STRIPE_SECRET_KEY")
-
-	rzpClient := rzpsdk.NewClient(
-		os.Getenv("RAZORPAY_KEY_ID"),
-		os.Getenv("RAZORPAY_KEY_SECRET"),
-	)
-
+func NewPaymentGatewayHandler(
+	membershipSvc *service.MembershipService,
+	coinSvc *service.CoinService,
+	paymentSvc *service.PaymentService,
+) *PaymentGatewayHandler {
 	return &PaymentGatewayHandler{
 		membershipSvc: membershipSvc,
 		coinSvc:       coinSvc,
 		paymentSvc:    paymentSvc,
-		pgFactory:     paymentgateway.FromEnv(),
-		rzpClient:     rzpClient,
+		pgFactory:     pg.FromEnv(),
 	}
 }
 
-// ── POST /api/payments/razorpay/create-order ─────────────────────
-// Body:    { "plan": "...", "purchase_type": "membership"|"coins" }
-// Returns: { "order_id": "order_xxx", "key_id": "rzp_live_xxx", "amount": 49900 }
+
+// ── POST /api/payments/razorpay/create-order ─────────────────────────────────
+// Body: { "plan": "basic"|"pro"|"100", "purchase_type": "membership"|"coins" }
 func (h *PaymentGatewayHandler) RazorpayCreateOrder(c *gin.Context) {
-	var body struct {
-		Plan         string `json:"plan" binding:"required"`
-		PurchaseType string `json:"purchase_type"` // default membership
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "plan is required"})
-		return
-	}
-
-	var amount int64
-	var ok bool
-	pt := body.PurchaseType
-	if pt == "" {
-		pt = "membership"
-	}
-	switch pt {
-	case "coins":
-		var parsedCoins int64
-		_, err := fmt.Sscanf(body.Plan, "%d", &parsedCoins)
-		if err == nil && parsedCoins > 0 {
-			ok = true
-			// 10 coins = $1 USD = ~83 INR.
-			amount = (parsedCoins / 10) * 83 * 100 // amount in paise
-		}
-	case "membership":
-		amount, ok = planAmountsPaise[body.Plan]
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "purchase_type must be membership or coins"})
-		return
-	}
-
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan or coin pack"})
-		return
-	}
-
-	uid, _ := getUID(c)
-
-	receipt := fmt.Sprintf("%s_%s_user%d", pt, body.Plan, uid)
-	data := map[string]interface{}{
-		"amount":   amount,
-		"currency": "INR",
-		"receipt":  receipt,
-		"notes": map[string]interface{}{
-			"user_id":          uid,
-			"plan":             body.Plan,
-			"purchase_type":    pt,
-			"default_provider": h.pgFactory.DefaultTopupProvider(),
-		},
-	}
-
-	order, err := h.rzpClient.Order.Create(data, nil)
+	gw, err := h.pgFactory.ResolveCheckout("razorpay")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create Razorpay order"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"order_id": order["id"],
-		"key_id":   os.Getenv("RAZORPAY_KEY_ID"),
-		"amount":   amount,
-	})
+	h.createCheckout(c, gw)
 }
 
-// ── POST /api/payments/razorpay/verify ───────────────────────────
-// Body: { "plan", "purchase_type", "razorpay_order_id", "razorpay_payment_id", "razorpay_signature" }
-// Verifies HMAC signature then activates membership or credits coins.
+// ── POST /api/payments/razorpay/verify ───────────────────────────────────────
 func (h *PaymentGatewayHandler) RazorpayVerify(c *gin.Context) {
 	var body struct {
-		Plan              string `json:"plan" binding:"required"`
+		Plan              string `json:"plan"                binding:"required"`
 		PurchaseType      string `json:"purchase_type"`
 		RazorpayOrderID   string `json:"razorpay_order_id"   binding:"required"`
 		RazorpayPaymentID string `json:"razorpay_payment_id" binding:"required"`
@@ -144,13 +80,13 @@ func (h *PaymentGatewayHandler) RazorpayVerify(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Verify HMAC-SHA256: sign(order_id + "|" + payment_id)
-	mac := hmac.New(sha256.New, []byte(os.Getenv("RAZORPAY_KEY_SECRET")))
-	mac.Write([]byte(body.RazorpayOrderID + "|" + body.RazorpayPaymentID))
-	expected := hex.EncodeToString(mac.Sum(nil))
-
-	if expected != body.RazorpaySignature {
+	gw, err := h.pgFactory.ResolveCheckout("razorpay")
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	verifier, ok := gw.(pg.PaymentVerifier)
+	if !ok || !verifier.VerifyPaymentSignature(body.RazorpayOrderID, body.RazorpayPaymentID, body.RazorpaySignature) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "signature mismatch"})
 		return
 	}
@@ -160,256 +96,173 @@ func (h *PaymentGatewayHandler) RazorpayVerify(c *gin.Context) {
 		pt = "membership"
 	}
 	uid, _ := getUID(c)
-
-	switch pt {
-	case "coins":
-		var coins int64
-		_, err := fmt.Sscanf(body.Plan, "%d", &coins)
-		if err != nil || coins <= 0 || h.coinSvc == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coin pack"})
-			return
-		}
-		if err := h.coinSvc.CreditTopUp(c.Request.Context(), uid, coins, "razorpay", nil); err != nil {
-			respondErr(c, err)
-			return
-		}
-		respond(c, gin.H{"credited_coins": coins})
-		return
-	case "membership":
-		plan, ok := planEntityMap[body.Plan]
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan"})
-			return
-		}
-		membership, err := h.membershipSvc.Activate(c.Request.Context(), uid, plan)
-		if err != nil {
-			respondErr(c, err)
-			return
-		}
-		respond(c, membership)
-		return
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid purchase_type"})
-	}
+	h.fulfil(c, uid, body.Plan, pt)
 }
 
-// ── POST /api/payments/stripe/create-session ─────────────────────
-// Body:    { "plan": "basic" | "pro" | "100" }
-// Returns: { "url": "https://checkout.stripe.com/pay/cs_xxx" }
+// ── POST /api/payments/stripe/create-session ─────────────────────────────────
 func (h *PaymentGatewayHandler) StripeCreateSession(c *gin.Context) {
+	gw, err := h.pgFactory.ResolveCheckout("stripe")
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	h.createCheckout(c, gw)
+}
+
+// ── POST /api/payments/stripe/webhook ────────────────────────────────────────
+func (h *PaymentGatewayHandler) StripeWebhook(c *gin.Context) {
+	h.handleWebhook(c, "stripe", c.GetHeader("Stripe-Signature"))
+}
+
+// ── POST /api/payments/razorpay/webhook ──────────────────────────────────────
+func (h *PaymentGatewayHandler) RazorpayWebhook(c *gin.Context) {
+	h.handleWebhook(c, "razorpay", c.GetHeader("X-Razorpay-Signature"))
+}
+
+// ─── shared helpers ───────────────────────────────────────────────────────────
+
+// createCheckout is the shared checkout creation flow for any provider.
+func (h *PaymentGatewayHandler) createCheckout(c *gin.Context, gw pg.Gateway) {
 	var body struct {
-		Plan         string `json:"plan" binding:"required"`
+		Plan         string `json:"plan"          binding:"required"`
 		PurchaseType string `json:"purchase_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "plan is required"})
 		return
 	}
-
 	pt := body.PurchaseType
 	if pt == "" {
 		pt = "membership"
 	}
-	var amount int64
-	var ok bool
-	var title string
-	currency := "usd"
-
-	switch pt {
-	case "coins":
-		var parsedCoins int64
-		_, err := fmt.Sscanf(body.Plan, "%d", &parsedCoins)
-		if err == nil && parsedCoins > 0 {
-			ok = true
-			amount = (parsedCoins / 10) * 100 // 10 coins = $1, amount in cents
-			title = fmt.Sprintf("%d Platform Coins", parsedCoins)
-		}
-	case "membership":
-		amount, ok = planAmountsPaise[body.Plan] // Note: membership still hardcoded in paise? Wait, let's keep it as is, or use USD. We'll use "usd" currency anyway so planAmountsPaise is 49900 (=$499). Is that right? No basic is $5.00: 500 in planAmountsPaise. Wait, planAmountsPaise says 49900 for Basic, which is 499 Inr.
-		if amount == 49900 {
-			amount = 500
-		} // $5
-		if amount == 149900 {
-			amount = 1500
-		} // $15
-		title = fmt.Sprintf("%s Membership", body.Plan)
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid purchase_type"})
-		return
-	}
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan or pack"})
-		return
-	}
-
 	uid, _ := getUID(c)
-	appURL := os.Getenv("APP_URL") // e.g. http://localhost:3000
+	appURL := os.Getenv("APP_URL")
 
-	params := &stripe.CheckoutSessionParams{
-		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{
-				Quantity: stripe.Int64(1),
-				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-					Currency:   stripe.String(currency),
-					UnitAmount: stripe.Int64(amount),
-					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String(title),
-					},
-				},
-			},
+	in, err := buildCheckoutInput(body.Plan, pt, uid, appURL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := gw.CreateCheckout(c.Request.Context(), in)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("gateway error: %v", err)})
+		return
+	}
+
+	resp := gin.H{"provider": gw.Name()}
+	if result.URL != "" {
+		resp["url"] = result.URL
+	}
+	if result.ProviderRefID != "" {
+		resp["order_id"] = result.ProviderRefID
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// handleWebhook is the shared webhook handler for any provider.
+func (h *PaymentGatewayHandler) handleWebhook(c *gin.Context, providerName, signature string) {
+	payload, err := io.ReadAll(io.LimitReader(c.Request.Body, 65536))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
+		return
+	}
+	gw, err := h.pgFactory.ResolveCheckout(providerName)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	event, err := gw.VerifyWebhook(payload, signature)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if event.UserID > 0 {
+		h.fulfil(c, event.UserID, event.Plan, event.PurchaseType)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"received": true, "event": event.EventType})
+}
+
+// fulfil credits coins or activates a membership after payment is confirmed.
+func (h *PaymentGatewayHandler) fulfil(c *gin.Context, uid uint, plan, purchaseType string) {
+	switch purchaseType {
+	case "coins":
+		var coins int64
+		if _, err := fmt.Sscanf(plan, "%d", &coins); err != nil || coins <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coin pack"})
+			return
+		}
+		if h.coinSvc == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "coin service unavailable"})
+			return
+		}
+		if err := h.coinSvc.CreditTopUp(c.Request.Context(), uid, coins, "payment_gateway", nil); err != nil {
+			respondErr(c, err)
+			return
+		}
+		respond(c, gin.H{"credited_coins": coins})
+
+	case "membership":
+		ep, ok := planEntityMap[plan]
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan: " + plan})
+			return
+		}
+		membership, err := h.membershipSvc.Activate(c.Request.Context(), uid, ep)
+		if err != nil {
+			respondErr(c, err)
+			return
+		}
+		respond(c, membership)
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown purchase_type: " + purchaseType})
+	}
+}
+
+// buildCheckoutInput constructs a provider-agnostic CheckoutInput.
+func buildCheckoutInput(plan, purchaseType string, uid uint, appURL string) (pg.CheckoutInput, error) {
+	var amount int64
+	var title string
+
+	switch purchaseType {
+	case "coins":
+		var coins int64
+		if _, err := fmt.Sscanf(plan, "%d", &coins); err != nil || coins <= 0 {
+			return pg.CheckoutInput{}, fmt.Errorf("invalid coin pack %q", plan)
+		}
+		amount = (coins / 10) * 100 // 10 coins = $1
+		title = fmt.Sprintf("%d Platform Coins", coins)
+
+	case "membership":
+		paise, ok := planAmountsPaise[plan]
+		if !ok {
+			return pg.CheckoutInput{}, fmt.Errorf("invalid plan %q", plan)
+		}
+		amount = paise
+		title = fmt.Sprintf("%s Membership", plan)
+
+	default:
+		return pg.CheckoutInput{}, fmt.Errorf("unknown purchase_type %q", purchaseType)
+	}
+
+	return pg.CheckoutInput{
+		AmountMinor: amount,
+		Currency:    "inr",
+		Title:       title,
+		SuccessURL:  appURL + "/dashboard?payment=success",
+		CancelURL:   appURL + "/checkout?payment=cancelled",
+		Receipt:     fmt.Sprintf("%s_%s_uid%d", purchaseType, plan, uid),
+		Metadata: map[string]string{
+			"user_id":       fmt.Sprintf("%d", uid),
+			"plan":          plan,
+			"purchase_type": purchaseType,
 		},
-		SuccessURL: stripe.String(fmt.Sprintf("%s/dashboard?payment=success", appURL)),
-		CancelURL:  stripe.String(fmt.Sprintf("%s/checkout?payment=cancelled", appURL)),
-	}
-	params.AddMetadata("user_id", fmt.Sprintf("%d", uid))
-	params.AddMetadata("plan", body.Plan)
-	params.AddMetadata("purchase_type", pt)
-
-	sess, err := stripesession.New(params)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create Stripe session"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"url": sess.URL})
-}
-
-// ── POST /api/payments/stripe/webhook ────────────────────────────
-
-func (h *PaymentGatewayHandler) StripeWebhook(c *gin.Context) {
-	payload, err := io.ReadAll(io.LimitReader(c.Request.Body, 65536))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
-		return
-	}
-
-	event, err := stripewebhook.ConstructEventWithOptions(
-		payload,
-		c.GetHeader("Stripe-Signature"),
-		os.Getenv("STRIPE_WEBHOOK_SECRET"),
-		stripewebhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true},
-	)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "webhook signature verification failed", "details": err.Error()})
-		return
-	}
-
-	if event.Type == "checkout.session.completed" {
-		var sess stripe.CheckoutSession
-		if err := json.Unmarshal(event.Data.Raw, &sess); err == nil &&
-			(sess.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid ||
-				sess.Status == stripe.CheckoutSessionStatusComplete) {
-
-			planStr := sess.Metadata["plan"]
-			pt := sess.Metadata["purchase_type"]
-			if pt == "" {
-				pt = "membership"
-			}
-			var uid uint
-			fmt.Sscanf(sess.Metadata["user_id"], "%d", &uid)
-			fmt.Printf("[STRIPE WEBHOOK] event=checkout.session.completed uid=%d plan=%q purchase_type=%q\n", uid, planStr, pt)
-
-			if uid > 0 {
-				var dbErr error
-				if pt == "coins" && h.coinSvc != nil {
-					var coins int64
-					if _, err := fmt.Sscanf(planStr, "%d", &coins); err == nil && coins > 0 {
-						if dbErr = h.coinSvc.CreditTopUp(c.Request.Context(), uid, coins, "stripe", nil); dbErr != nil {
-							fmt.Printf("[STRIPE WEBHOOK] CreditTopUp FAILED uid=%d coins=%d err=%v\n", uid, coins, dbErr)
-						} else {
-							fmt.Printf("[STRIPE WEBHOOK] CreditTopUp OK uid=%d coins=%d\n", uid, coins)
-						}
-					} else {
-						fmt.Printf("[STRIPE WEBHOOK] could not parse coins from plan=%q\n", planStr)
-					}
-				} else if plan, ok := planEntityMap[planStr]; ok {
-					if _, err := h.membershipSvc.Activate(c.Request.Context(), uid, plan); err != nil {
-						fmt.Printf("[STRIPE WEBHOOK] Activate FAILED uid=%d plan=%q err=%v\n", uid, planStr, err)
-						dbErr = err
-					} else {
-						fmt.Printf("[STRIPE WEBHOOK] Activate OK uid=%d plan=%q\n", uid, planStr)
-					}
-				} else {
-					fmt.Printf("[STRIPE WEBHOOK] unknown plan=%q for uid=%d\n", planStr, uid)
-				}
-
-				// Record payment in DB (best-effort)
-				if dbErr == nil && h.paymentSvc != nil {
-					payID := fmt.Sprintf("stripe-%s", sess.ID)
-					// Manually create barebones completed payment record
-					// Usually this is done via orders, but for top-ups we log it manually
-					// to ensure it shows up in history/admin panel
-					_ = h.paymentSvc // We need paymentRepo not Svc to freely insert, but since we don't have it here...
-					fmt.Printf("[STRIPE WEBHOOK] Note: external payment %s should be recorded in DB\n", payID)
-				}
-			} else {
-				fmt.Printf("[STRIPE WEBHOOK] uid=0, skipping DB write. Metadata: %v\n", sess.Metadata)
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"received": true})
-}
-
-// POST /api/payments/razorpay/webhook
-// Listens to "payment.captured" from Razorpay Server.
-// Verify HMAC SHA256 of body using RAZORPAY_WEBHOOK_SECRET
-func (h *PaymentGatewayHandler) RazorpayWebhook(c *gin.Context) {
-	payload, err := io.ReadAll(io.LimitReader(c.Request.Body, 65536))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
-		return
-	}
-
-	sig := c.GetHeader("X-Razorpay-Signature")
-	mac := hmac.New(sha256.New, []byte(os.Getenv("RAZORPAY_WEBHOOK_SECRET")))
-	mac.Write(payload)
-	expected := hex.EncodeToString(mac.Sum(nil))
-
-	if expected != sig {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "webhook signature verification failed"})
-		return
-	}
-
-	var event struct {
-		Event   string `json:"event"`
-		Payload struct {
-			Payment struct {
-				Entity struct {
-					Status string `json:"status"`
-					Notes  struct {
-						UserID       uint   `json:"user_id"`
-						Plan         string `json:"plan"`
-						PurchaseType string `json:"purchase_type"`
-					} `json:"notes"`
-				} `json:"entity"`
-			} `json:"payment"`
-		} `json:"payload"`
-	}
-
-	if err := json.Unmarshal(payload, &event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload json"})
-		return
-	}
-
-	if event.Event == "payment.captured" {
-		notes := event.Payload.Payment.Entity.Notes
-		pt := notes.PurchaseType
-		if pt == "" {
-			pt = "membership"
-		}
-		if notes.UserID > 0 {
-			if pt == "coins" && h.coinSvc != nil {
-				var coins int64
-				if _, err := fmt.Sscanf(notes.Plan, "%d", &coins); err == nil && coins > 0 {
-					_ = h.coinSvc.CreditTopUp(c.Request.Context(), notes.UserID, coins, "razorpay_webhook", nil)
-				}
-			} else if plan, ok := planEntityMap[notes.Plan]; ok {
-				h.membershipSvc.Activate(c.Request.Context(), notes.UserID, plan) //nolint:errcheck
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"received": true})
+		Notes: map[string]any{
+			"user_id":       uid,
+			"plan":          plan,
+			"purchase_type": purchaseType,
+		},
+	}, nil
 }

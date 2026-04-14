@@ -1,40 +1,182 @@
-# Cureerel Server API Endpoints
+# cserver
 
-A modular Go backend for the Cureerel platform. All API routes are prefixed with `/api`.
+A production-ready, single-writer REST API backend built with **Go**, **Gin**, **GORM**, and **PostgreSQL**.
 
+## Architecture
 
-## 🎣 Webhooks (`/webhooks`)
-| Method | Path | Provider | Description |
-| :--- | :--- | :--- | :--- |
-| POST | `/webhooks/stripe` | Stripe | Specialized Stripe event handler |
-| POST | `/webhooks/razorpay` | Razorpay | Specialized Razorpay event handler |
-| POST | `/payments/stripe/webhook` | Stripe | Legacy/Direct Stripe handler |
+```
+cmd/server/         ← entry point
+internal/
+  domain/
+    entity/         ← core domain types (User, Order, Blog, …)
+    repository/     ← repository interfaces
+  application/
+    service/        ← business logic layer
+  infrastructure/
+    pg/             ← payment gateway layer (Stripe, Razorpay, Dodo)
+    postgres/       ← GORM models + repositories
+    storage/        ← Cloudinary image upload
+    email/          ← SMTP email client
+    redis/          ← session / cache
+  interfaces/
+    http/
+      handler/      ← Gin HTTP handlers
+      middleware/   ← JWT auth, CORS, role checks
+      router/       ← modular route registration
+      dto/          ← request/response DTOs
+pkg/
+  apperror/         ← typed error helpers
+  idgen/            ← prefixed unique ID generator
+migrations/         ← SQL migration files (Atlas)
+```
 
-## Dashboard 
-- **User**: 
-- **Dashboard**:
-- **Memberships**: 
-- **Coins**: 
-- **Admin**: 
-- **Uploads**: 
+## Role model
 
-## 🚀 Running the Project
+| Role    | Level | Access |
+|---------|-------|--------|
+| `user`    | 1 | Public endpoints + own data |
+| `partner` | 2 | Partner-tier features |
+| `admin`   | 3 | Full platform management |
+
+## Payment gateways
+
+Providers self-register via `init()`. Enable/disable by adding or removing a blank import in `payment_gateway_handler.go`:
+
+```go
+import (
+    _ "github.com/cureerel/cserver/internal/infrastructure/pg/stripe"
+    _ "github.com/cureerel/cserver/internal/infrastructure/pg/razorpay"
+    _ "github.com/cureerel/cserver/internal/infrastructure/pg/dodo"
+)
+```
+
+Adding a new gateway = create a package that implements `pg.Gateway`, call `pg.Register()` in `init()`.
+
+## Quick start
+
 ```bash
+# 1. Copy and fill env
+cp .env.example .env
+
+# 2. Apply DB migrations
+make migrate-up
+
+# 3. Run dev server
 make run
 ```
 
+## Environment variables
+
+```env
+# Server
+PORT=8080
+APP_URL=http://localhost:8080
+
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/cserver?sslmode=disable
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=change_me_in_production
+JWT_EXPIRY_HOURS=24
+
+# Email (SMTP)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=no-reply@example.com
+SMTP_PASS=secret
+EMAIL_FROM_NAME="Cureerel"
+EMAIL_FROM_ADDRESS=no-reply@example.com
+
+# Payment region  (IN → Razorpay default, GLOBAL → Stripe default)
+PAYMENT_REGION=IN
+PAYMENT_PROVIDER=           # override: stripe | razorpay | dodo
+PAYMENT_TOPUP_PROVIDER=     # override for coin top-ups
+
+# Stripe
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Razorpay
+RAZORPAY_KEY_ID=rzp_live_...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_WEBHOOK_SECRET=...
+
+# Dodo Payments
+DODOPAYMENTS_API_KEY=...
+DODOPAYMENTS_WEBHOOK_SECRET=...
+DODOPAYMENTS_BASE_URL=https://api.dodopayments.com/v1
+
+# Cloudinary
+CLOUDINARY_URL=cloudinary://...
+
+# OTP
+OTP_EXPIRY_MINUTES=10
+PLATFORM_NAME="Cureerel"
+```
+
+## Make targets
 
 ```
-# ayth return 
-{
-  "data": {
-    "access_token": "...",
-    "refresh_token": "...",
-    "expires_at": "..."
-  }
-}
+make run              Start dev server
+make build            Build binary → build/cserver
+make prod-build       Cross-compile Linux/amd64 binary
+make migrate-up       Apply pending migrations
+make migrate-down     Revert last migration
+make migrate-status   Show migration state
+make migrate-create NAME=foo   Create new migration
+make lint             Run golangci-lint
+make fmt              gofmt all files
+make vet              go vet all packages
+make test             Run tests with race detector
+make db-reset         Drop + recreate public schema
+make db-dump-schema   Dump schema to schema.sql
 ```
 
+## API overview
+
+| Group | Base | Auth |
+|-------|------|------|
+| Auth | `/api/auth` | — |
+| Users | `/api/users` | Admin |
+| Profile | `/api/users/me` | Bearer |
+| Blogs | `/api/blogs` | — / Admin |
+| Services | `/api/services` | — / Admin |
+| Orders | `/api/orders` | Bearer |
+| Payments | `/api/payments` | Bearer |
+| Memberships | `/api/memberships` | Bearer |
+| Coins | `/api/coins` | Bearer |
+| Coupons | `/api/coupons` | — / Admin |
+| Tickets | `/api/tickets` | Bearer |
+| Products | `/api/products` | — / Admin |
+| Upload | `/api/upload` | Bearer |
+| Dashboard | `/api/dashboard` | Bearer |
+| Admin stats | `/api/admin` | Admin |
+| Webhooks | `/api/webhooks` | — |
+
+## Docker
+
+```bash
+# Build image
+docker build -f dockerfile -t cserver:latest .
+
+# Run
+docker run --env-file .env -p 8080:8080 cserver:latest
 ```
- https://deferred-banking-glaring.ngrok-free.dev/api/payments/stripe/webhook
-```
+
+## ID format
+
+All domain IDs use prefixed base-36 strings generated by `pkg/idgen`:
+
+| Domain | Prefix | Example |
+|--------|--------|---------|
+| Order | `ord_` | `ord_lx4k9mz1a8f` |
+| Product | `prd_` | `prd_lx4k9mz2b3g` |
+| Service | `svc_` | `svc_lx4k9mz3c4h` |
+| Payment | `pay_` | `pay_lx4k9mz4d5i` |
+| Cart | `crt_` | `crt_lx4k9mz5e6j` |
+| Coin txn | `cxn_` | `cxn_lx4k9mz6f7k` |
+| Coupon | `cpn_` | `cpn_lx4k9mz7g8l` |
+| Invoice | `inv_` | `inv_lx4k9mz8h9m` |

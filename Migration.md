@@ -30,3 +30,5 @@ Changes:
 - Added `product_id` to `order_items`
 - Membership plans: `free | basic | pro` (removed enterprise)
 - Created `user_wallets`, `coin_ledger`, `blog_unlocks`, `blog_views` (idempotent)
+
+
